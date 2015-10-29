@@ -1,2 +1,5 @@
 # no raw data file (.dat)
 *.dat
+
+# Pycharm files
+.idea/
