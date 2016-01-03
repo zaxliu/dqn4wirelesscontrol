@@ -30,8 +30,11 @@ class TrafficEmulator:
     verbose : int, default : 0
         Verbosity level.
     """
-    def __init__(self, session_df, head_datetime=None, tail_datetime=None, time_step=pd.Timedelta(seconds=1),
+    def __init__(self, session_df=None, head_datetime=None, tail_datetime=None, time_step=pd.Timedelta(seconds=1),
                  verbose=0):
+        if session_df is None:
+            print "TrafficEmulator Initialization: session_df passed in is empty or None."
+            raise ValueError
         self.session_df = session_df  # Initialize session dataset
         # starting datetime of the simulation, use datetime of first session arrival if not assigned
         self.head_datetime = head_datetime if head_datetime is not None \
@@ -48,6 +51,10 @@ class TrafficEmulator:
             'endTime_datetime_updated', 'bytesLeft_per_request_per_domain', 'requestsSent_per_domain'
         ]))  # buffer for active sessions
         self.verbose = verbose  # verbosity level
+        if verbose > 0:
+            print "New TrafficEmulator with parameters:\n  " \
+                  "head={}\n  tail={}\n  time_step={}\n  epoch={}\n  verbose={}".format(
+                    self.head_datetime, self.tail_datetime, self.time_step, self.epoch, self.verbose)
 
     # Public Methods
     def get_traffic(self):
@@ -65,7 +72,7 @@ class TrafficEmulator:
         right = left + self.time_step
         # if left edge out of range, set epoch=None to indicate run out of data
         if left >= self.tail_datetime:
-            print "Run out of session data, please reset dataset"
+            print "Reach tail_datetime, please reset dataset"
             self.epoch = None
             return None
         incoming_sessions = self.session_df.loc[(self.session_df['startTime_datetime'] >= left) &
@@ -75,16 +82,20 @@ class TrafficEmulator:
         traffic_df = self.__generate_traffic__()
         return traffic_df
 
-    def serve(self, service):
-        # Update active session buffer according to traffic
-        service_reward = self.__update_buffer__(service=service)
-        # Delete sessions that will end in next round
-        left_next = self.head_datetime + (self.epoch+1)*self.time_step
-        self.active_sessions.drop(
-            self.active_sessions.index[self.active_sessions['endTime_datetime_updated'] < left_next],
-            axis=0, inplace=True)
-        # Increase timer by one epoch
-        self.epoch += 1
+    def serve(self, service_df):
+        if self.epoch is not None:
+            # Update active session buffer according to traffic
+            service_reward = self.__update_buffer__(service_df=service_df)
+            # Delete sessions that will end in next round
+            left_next = self.head_datetime + (self.epoch+1)*self.time_step
+            self.active_sessions.drop(
+                self.active_sessions.index[self.active_sessions['endTime_datetime_updated'] < left_next],
+                axis=0, inplace=True)
+            # Increase timer by one epoch
+            self.epoch += 1
+        else:
+            print "Ran out of data or reach tail, service ignored."
+            service_reward = 0
         return service_reward
 
     def reset(self):
@@ -141,19 +152,20 @@ class TrafficEmulator:
             bytesLeft_req_domain = json.loads(self.active_sessions.loc[idx, 'bytesLeft_per_request_per_domain'])
             reqSent_domain = {}
             bytesSent_req_domain = {}
-            # Which reqs  are sent for each domain?
+            # Which reqs are sent for each domain?
             for domain in bytesLeft_req_domain:
                 flag = np.random.rand(1, len(bytesLeft_req_domain[domain])) < 1.0/epochs_left  # send or not?
-                reqSent_domain[domain] = flag.nonzero()[1].tolist()  # record the index of sent requensts
+                reqSent_domain[domain] = flag.nonzero()[1].tolist()  # record the index of sent requests
                 bytesSent_req_domain[domain] = np.array(bytesLeft_req_domain[domain])[flag.nonzero()[1]].tolist()  # generate traffic for sent requests
             rsd_str = json.dumps(reqSent_domain)
             bsrd_str = json.dumps(bytesSent_req_domain)
             self.active_sessions.loc[idx, 'requestsSent_per_domain'] = rsd_str
             traffic_df = traffic_df.append(pd.DataFrame({'uid': self.active_sessions.loc[idx, 'uid'],
                                                          'bytesSent_per_request_per_domain': bsrd_str}, index=[idx]))
+        traffic_df.index.name = 'sessionID'
         return traffic_df
 
-    def __update_buffer__(self, service):
+    def __update_buffer__(self, service_df):
         """Modify active session state according to the service provided
         Interaction assumptions:
             1: if a request is served, then substract this request from the buffer.
@@ -161,22 +173,41 @@ class TrafficEmulator:
         Reward assumptions:
             1: if a request is served, emit 1
             2: if a request is denied, emit -1
-        :param service: a data frame indicating the service for each traffic row
+        :param service_df: a data frame indicating the service for each traffic row
         :return: a scalar reward for the service
         """
-        reward = 0
-        for idx in service.index:
+        reward = 0  # initial reward set to zero
+
+        # For each row in service_df, update corresponding active session buffer row
+        for idx in service_df.index:
+            # How many requests left and how many bytes it have?
+            # {domain1: [req1_bytes, req2_bytes, ...], domain2: ...}
             bytesLeft_req_domain = json.loads(self.active_sessions.loc[idx, 'bytesLeft_per_request_per_domain'])
+            # Which requests are sent in the last epoch?
+            # {domain1: [req1_id, req3_id, req4_id, ...], domain2: ...}
             reqSent_domain = json.loads(self.active_sessions.loc[idx, 'requestsSent_per_domain'])
-            reqServedFlag_domain = json.loads(service.loc[idx, 'reqServedFlag_per_domain'])
+            # Which sent requests are served?
+            # {domain1: [req1_flag, req2_flag, ...], domain2: ...}
+            reqServedFlag_domain = json.loads(service_df.loc[idx, 'reqServedFlag_per_domain'])
+
+            # for each domain sent, check which request got served, and update corresponding dict value
             for domain in reqSent_domain:
+                # get dict value
                 bytesLeft_req = np.array(bytesLeft_req_domain[domain])
                 reqSent = np.array(reqSent_domain[domain])
-                servedFlag = np.array(reqServedFlag_domain[domain])  # a list of if-served flag for each req sent
-                leftFlag = [i not in reqSent[servedFlag].tolist() for i in range(len(bytesLeft_req))]
-                bytesLeft_req = bytesLeft_req[leftFlag]  # delete the served requests
-                bytesLeft_req_domain[domain] = bytesLeft_req.tolist()
-                self.active_sessions.loc[idx, 'bytesLeft_per_request_per_domain'] = json.dumps(bytesLeft_req_domain)
-                reward += (np.array(servedFlag)*2-1).sum()  # accumulate rewards for current domain
-        return reward
+                servedFlag = np.array(reqServedFlag_domain[domain]) if domain in reqServedFlag_domain else np.array([False]*len(reqSent))
+                if self.verbose > 0:
+                    print reqSent, servedFlag
+                # indices of requests which are served, explicitly set as [] when empty due to a bug of numpy
+                reqServed = reqSent[servedFlag].tolist() if len(reqSent) != 0 else []
+                # update dict value
+                leftFlag = [i not in reqServed for i in range(len(bytesLeft_req))]  # index of requests which are left for future service
+                # drop the served requests, explicitly
+                bytesLeft_req = bytesLeft_req[np.array(leftFlag)].tolist() if len(bytesLeft_req) != 0 else []
+                bytesLeft_req_domain[domain] = bytesLeft_req
+                # accumulate rewards
+                reward += (np.array(servedFlag)*2-1).sum()
 
+            # update active session buffer
+            self.active_sessions.loc[idx, 'bytesLeft_per_request_per_domain'] = json.dumps(bytesLeft_req_domain)
+        return reward
