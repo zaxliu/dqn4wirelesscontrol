@@ -51,6 +51,8 @@ class TrafficEmulator:
         # Verbosity ===================================================
         self.verbose = verbose  # verbosity level
         # Reset active session buffer and time counter ================
+        self.active_sessions = None
+        self.epoch = None
         self.reset()
         # Output ======================================================
         if verbose > 0:
@@ -59,7 +61,7 @@ class TrafficEmulator:
                     self.head_datetime, self.tail_datetime, self.time_step, self.epoch, self.verbose)
 
     # Public Methods
-    def get_traffic(self):
+    def generate_traffic(self):
         """Get traffic for this epoch, set epoch=None if run out of data
         First check the traffic dataset and add new sessions that are initiated during this epoch, add these new-coming
         sessions into the active session buffer. Then generate traffic (in term of how many bytes are sent in some
@@ -86,25 +88,20 @@ class TrafficEmulator:
                                                 (self.session_df['startTime_datetime'] < right)]
         if self.verbose > 0:
             print "get_traffic(): appending incoming sessions to buffer."
-        self.__append_to_buffer__(incoming_sessions)
+        self.__append_to_active_sessions__(incoming_sessions)
         # ===========================================================
         # 2. Generate traffic according active session buffer content
         if self.verbose > 0:
             print "get_traffic(): generating traffic."
-        traffic_df = self.__generate_traffic__()
+        traffic_df = self.__generate_requests__()
         if self.verbose > 0:
             print "get_traffic(): finished."
         return traffic_df
 
-    def serve(self, service_df):
+    def serve_and_reward(self, service_df):
         if self.epoch is not None:
-            # Update active session buffer according to service provided
+            # Update active session buffer and emit reward according to the service provided
             service_reward = self.__interact__(service_df=service_df)
-            # Delete sessions that will end in next round from buffer
-            left_next = self.head_datetime + (self.epoch+1)*self.time_step
-            self.active_sessions.drop(
-                self.active_sessions.index[self.active_sessions['endTime_datetime_updated'] < left_next],
-                axis=0, inplace=True)
             # Increase timer by one epoch
             self.epoch += 1
         else:
@@ -141,7 +138,7 @@ class TrafficEmulator:
         self.epoch = 0
 
     # Private Methods
-    def __append_to_buffer__(self, incoming_sessions):
+    def __append_to_active_sessions__(self, incoming_sessions):
         """Append incoming sessions to active session buffer and adjust format.
 
         :param incoming_sessions: incoming session DataFrame
@@ -187,7 +184,7 @@ class TrafficEmulator:
         """
         return list(np.random.multinomial(bytes, [1.0/requests]*requests))
 
-    def __generate_traffic__(self):
+    def __generate_requests__(self):
         """How many requests in each domain are issued in current epoch?
 
         Traffic drilling-down assumptions:
@@ -317,5 +314,10 @@ class TrafficEmulator:
             self.active_sessions.loc[sessionID, 'waitingReqID_per_domain'] = json.dumps(waitingReqID_domain)
             self.active_sessions.loc[sessionID, 'servedReqID_per_domain'] = json.dumps(servedReqID_domain)
             self.active_sessions.loc[sessionID, 'failedReqID_per_domain'] = json.dumps(failedReqID_domain)
+        # Delete sessions that will end in next round from buffer =================================================
+        left_next = self.head_datetime + (self.epoch+1)*self.time_step
+        self.active_sessions.drop(
+            self.active_sessions.index[self.active_sessions['endTime_datetime_updated'] < left_next],
+            axis=0, inplace=True)
         # return reward ============================================================================================
         return reward

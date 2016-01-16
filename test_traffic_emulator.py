@@ -55,12 +55,12 @@ head, tail, time_step = pd.datetime(year=2014, month=9, day=3), pd.datetime(year
 te = TrafficEmulator(session_df, head_datetime=head, tail_datetime=tail, time_step=time_step)
 for i in range(0, 10):
     print "{} to {}".format(head+i*time_step, head+(i+1)*time_step)
-    t = te.get_traffic()
+    t = te.generate_traffic()
     if t is not None:
         print t.index
     else:
         pass
-    print "Reward = {}".format(te.serve(service_df=pd.DataFrame()))
+    print "Reward = {}".format(te.serve_and_reward(service_df=pd.DataFrame()))
 
 # No service:
 # Provide no service for all sessions. Should observe active session persist during its period.
@@ -72,7 +72,7 @@ time_step = pd.Timedelta(seconds=10)
 te = TrafficEmulator(session_df, head_datetime=head, tail_datetime=tail, time_step=time_step, verbose=1)
 for i in range(0, 10):
     print "{} to {}".format(head+i*time_step, head+(i+1)*time_step)
-    t = te.get_traffic()
+    t = te.generate_traffic()
     if t is not None:
         print t.index
     else:
@@ -80,7 +80,7 @@ for i in range(0, 10):
     service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'], index=t.index if t is not None else pd.Index([]))
     service_df['service_per_request_per_domain'] = json.dumps({})
     service_df['sessionID'] = t['sessionID']
-    print te.serve(service_df=service_df)
+    print te.serve_and_reward(service_df=service_df)
 
 # Full service
 print "=======Traffic & Service: full service======="
@@ -90,7 +90,7 @@ time_step = pd.Timedelta(seconds=10)
 te = TrafficEmulator(session_df, head_datetime=head, tail_datetime=tail, time_step=time_step,verbose=0)
 for i in range(0, 10):
     print "{} to {}".format(head+i*time_step, head+(i+1)*time_step)
-    t = te.get_traffic()
+    t = te.generate_traffic()
     if t is not None:
         print t
         service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'], index=t.index)
@@ -107,7 +107,7 @@ for i in range(0, 10):
             service_df.loc[idx, 'sessionID'] = t.loc[idx, 'sessionID']
     else:
         service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'], index=pd.Index([]))
-    print te.serve(service_df=service_df)
+    print te.serve_and_reward(service_df=service_df)
 
 
 # Partial service
@@ -118,7 +118,7 @@ time_step = pd.Timedelta(seconds=10)
 te = TrafficEmulator(session_df, head_datetime=head, tail_datetime=tail, time_step=time_step,verbose=0)
 for i in range(0, 10):
     print "{} to {}".format(head+i*time_step, head+(i+1)*time_step)
-    t = te.get_traffic()
+    t = te.generate_traffic()
     if t is not None:
         print t
         service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'], index=t.index)
@@ -142,4 +142,4 @@ for i in range(0, 10):
     else:
         service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'], index=pd.Index([]))
     print service_df
-    print te.serve(service_df=service_df)
+    print te.serve_and_reward(service_df=service_df)
