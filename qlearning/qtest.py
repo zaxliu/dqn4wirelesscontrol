@@ -48,7 +48,7 @@ class SimpleMaze:
 
 
 class QAgent:
-    def __init__(self, init_state=None, alpha=0, gamma=0.5, epsilon=0.0):
+    def __init__(self, init_state=None, alpha=1, gamma=0.5, epsilon=0.0):
         # static attributes
         self.actions = ['left', 'right', 'up', 'down']
         self.alpha = alpha  # learning rate
@@ -81,8 +81,7 @@ class QAgent:
                          if (new_state, new_a) in self.q_table else self.default_qval
                          for new_a in self.actions])
         delta_q = reward + self.gamma*best_qval
-        self.q_table[(s, a)] = (1-self.alpha)*delta_q + \
-                               self.alpha*self.q_table[(s, a)] if (s, a) in self.q_table else 0
+        self.q_table[(s, a)] = self.alpha*delta_q + (1-self.alpha)*self.q_table[(s, a)] if (s, a) in self.q_table else self.default_qval
         self.current_state = new_state
 
     def reset(self, init_state=None, foget_table=False):
@@ -102,7 +101,7 @@ if __name__ == "__main__":
     cum_steps = 0
 
     # repeatedly run episodes
-    while num_episodes <= 300:
+    while True:
         maze.reset()
         new_state = maze.observe()
         agent.reset(init_state=new_state)
@@ -129,6 +128,6 @@ if __name__ == "__main__":
         if num_episodes % 100 == 0:
             print num_episodes, len(agent.q_table), 1.0 * cum_reward / cum_steps, path
     win = 50
-    s = pd.rolling_mean(pd.Series([0]*win+episode_reward_rates), window=win, min_periods=1)
-    s.plot()
-    plt.show()
+    # s = pd.rolling_mean(pd.Series([0]*win+episode_reward_rates), window=win, min_periods=1)
+    # s.plot()
+    # plt.show()
