@@ -48,7 +48,7 @@ class SimpleMaze:
 
 
 class QAgent:
-    def __init__(self, init_state=None, alpha=1, gamma=0.5, epsilon=0.0):
+    def __init__(self, init_state=None, alpha=1.0, gamma=0.5, epsilon=0.0):
         # static attributes
         self.actions = ['left', 'right', 'up', 'down']
         self.alpha = alpha  # learning rate
@@ -64,31 +64,34 @@ class QAgent:
         if rand() < self.epsilon:  # random exploration with "epsilon" prob.
             idx_action = randint(0, len(self.actions))
         else:  # select the best action with "1-epsilon" prob., break tie randomly
-            q_vals = [self.q_table[(self.current_state, a)]
-                      if (self.current_state, a) in self.q_table else self.default_qval
-                      for a in self.actions]
+            q_vals = self.__lookup_table__(self.current_state)
             max_qval = max(q_vals)
             idx_best_actions = [i for i in range(len(q_vals)) if q_vals[i] == max_qval]
-            # idx_best_actions = [i for i in range(len(q_vals)) if abs(q_vals[i]-max_qval) < 1e-15]
             idx_action = idx_best_actions[randint(0, len(idx_best_actions))]
         self.current_action = self.actions[idx_action]
         return self.current_action
 
+    def __lookup_table__(self, state):
+        # return q values of all actions at given state
+        return [self.q_table[(state, a)] if (state, a) in self.q_table else self.default_qval for a in self.actions]
+
     def reinforce(self, new_state, reward):
+        self.__update_table__(new_state, reward)
+        self.current_state = new_state
+
+    def __update_table__(self, new_state, reward):
+        best_qval = max(self.__lookup_table__(new_state))
+        delta_q = reward + self.gamma*best_qval
         s = self.current_state
         a = self.current_action
-        best_qval = max([self.q_table[(new_state, new_a)]
-                         if (new_state, new_a) in self.q_table else self.default_qval
-                         for new_a in self.actions])
-        delta_q = reward + self.gamma*best_qval
         self.q_table[(s, a)] = self.alpha*delta_q + (1-self.alpha)*self.q_table[(s, a)] if (s, a) in self.q_table else self.default_qval
-        self.current_state = new_state
 
     def reset(self, init_state=None, foget_table=False):
         self.current_state = init_state
         self.current_action = None
         if foget_table:
             self.q_table = {}
+
 
 if __name__ == "__main__":
     maze = SimpleMaze()
