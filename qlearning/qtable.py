@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 
 class SimpleMaze:
     def __init__(self):
+        self.actions = ['left', 'right', 'up', 'down']
         self.dims = (4, 5)
         self.goal_state = (2, 2)
         self.state = None
@@ -47,10 +48,10 @@ class SimpleMaze:
         return self.state == self.goal_state
 
 
-class QAgent:
-    def __init__(self, init_state=None, alpha=1.0, gamma=0.5, epsilon=0.0):
+class QAgent(object):
+    def __init__(self, actions, alpha=1.0, gamma=0.5, epsilon=0.0, init_state=None):
         # static attributes
-        self.actions = ['left', 'right', 'up', 'down']
+        self.actions = actions
         self.alpha = alpha  # learning rate
         self.gamma = gamma  # discount factor
         self.epsilon = epsilon  # exploration probability
@@ -95,7 +96,7 @@ class QAgent:
 
 if __name__ == "__main__":
     maze = SimpleMaze()
-    agent = QAgent(alpha=0.5, gamma=0.1, epsilon=0.01)
+    agent = QAgent(actions=maze.actions, alpha=0.5, gamma=0.1, epsilon=0.01)
     # logging
     path = deque()  # path in this episode
     episode_reward_rates = []
