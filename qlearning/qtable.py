@@ -17,11 +17,11 @@ class SimpleMaze:
         return self.state
 
     def interact(self, action):
-        next_state, reward = self.__transition__(self.state, action)
+        next_state, reward = self.transition_(self.state, action)
         self.state = next_state
         return next_state, reward
 
-    def __transition__(self, current_state, action):
+    def transition_(self, current_state, action):
         if current_state == self.goal_state:
             return current_state, 0
         elif action == 'left':
@@ -65,23 +65,23 @@ class QAgent(object):
         if rand() < self.epsilon:  # random exploration with "epsilon" prob.
             idx_action = randint(0, len(self.actions))
         else:  # select the best action with "1-epsilon" prob., break tie randomly
-            q_vals = self.__lookup_table__(self.current_state)
+            q_vals = self.lookup_table_(self.current_state)
             max_qval = max(q_vals)
             idx_best_actions = [i for i in range(len(q_vals)) if q_vals[i] == max_qval]
             idx_action = idx_best_actions[randint(0, len(idx_best_actions))]
         self.current_action = self.actions[idx_action]
         return self.current_action
 
-    def __lookup_table__(self, state):
+    def lookup_table_(self, state):
         # return q values of all actions at given state
         return [self.q_table[(state, a)] if (state, a) in self.q_table else self.default_qval for a in self.actions]
 
     def reinforce(self, new_state, reward):
-        self.__update_table__(new_state, reward)
+        self.update_table_(new_state, reward)
         self.current_state = new_state
 
-    def __update_table__(self, new_state, reward):
-        best_qval = max(self.__lookup_table__(new_state))
+    def update_table_(self, new_state, reward):
+        best_qval = max(self.lookup_table_(new_state))
         delta_q = reward + self.gamma*best_qval
         s = self.current_state
         a = self.current_action
