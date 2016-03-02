@@ -51,41 +51,41 @@ class SimpleMaze:
 class QAgent(object):
     def __init__(self, actions, alpha=1.0, gamma=0.5, epsilon=0.0, init_state=None):
         # static attributes
-        self.actions = actions
-        self.alpha = alpha  # learning rate
-        self.gamma = gamma  # discount factor
-        self.epsilon = epsilon  # exploration probability
-        self.default_qval = 0  # default initial value for Q table entries
+        self.ACTIONS = actions
+        self.ALPHA = alpha  # learning rate
+        self.GAMMA = gamma  # discount factor
+        self.EPSILON = epsilon  # exploration probability
+        self.DEFAULT_QVAL = 0  # default initial value for Q table entries
         # dynamic attributes
         self.current_state = init_state
         self.current_action = None
         self.q_table = {}
 
     def act(self):
-        if rand() < self.epsilon:  # random exploration with "epsilon" prob.
-            idx_action = randint(0, len(self.actions))
+        if rand() < self.EPSILON:  # random exploration with "epsilon" prob.
+            idx_action = randint(0, len(self.ACTIONS))
         else:  # select the best action with "1-epsilon" prob., break tie randomly
             q_vals = self.lookup_table_(self.current_state)
             max_qval = max(q_vals)
             idx_best_actions = [i for i in range(len(q_vals)) if q_vals[i] == max_qval]
             idx_action = idx_best_actions[randint(0, len(idx_best_actions))]
-        self.current_action = self.actions[idx_action]
+        self.current_action = self.ACTIONS[idx_action]
         return self.current_action
 
     def lookup_table_(self, state):
         # return q values of all actions at given state
-        return [self.q_table[(state, a)] if (state, a) in self.q_table else self.default_qval for a in self.actions]
+        return [self.q_table[(state, a)] if (state, a) in self.q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
 
     def reinforce(self, new_state, reward):
         self.update_table_(new_state, reward)
         self.current_state = new_state
 
     def update_table_(self, new_state, reward):
+        current_state = self.current_state
+        current_action = self.current_action
         best_qval = max(self.lookup_table_(new_state))
-        delta_q = reward + self.gamma*best_qval
-        s = self.current_state
-        a = self.current_action
-        self.q_table[(s, a)] = self.alpha*delta_q + (1-self.alpha)*self.q_table[(s, a)] if (s, a) in self.q_table else self.default_qval
+        delta_q = reward + self.GAMMA * best_qval
+        self.q_table[(current_state, current_action)] = self.ALPHA * delta_q + (1 - self.ALPHA) * self.q_table[(current_state, current_action)] if (current_state, current_action) in self.q_table else self.DEFAULT_QVAL
 
     def reset(self, init_state=None, foget_table=False):
         self.current_state = init_state
