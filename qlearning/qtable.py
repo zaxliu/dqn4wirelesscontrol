@@ -77,8 +77,9 @@ class QAgent(object):
         return [self.q_table[(state, a)] if (state, a) in self.q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
 
     def reinforce(self, new_state, reward):
-        self.update_table_(new_state, reward)
+        update_result = self.update_table_(new_state, reward)
         self.current_state = new_state
+        return update_result
 
     def update_table_(self, new_state, reward):
         current_state = self.current_state
@@ -86,6 +87,7 @@ class QAgent(object):
         best_qval = max(self.lookup_table_(new_state))
         delta_q = reward + self.GAMMA * best_qval
         self.q_table[(current_state, current_action)] = self.ALPHA * delta_q + (1 - self.ALPHA) * self.q_table[(current_state, current_action)] if (current_state, current_action) in self.q_table else self.DEFAULT_QVAL
+        return None
 
     def reset(self, init_state=None, foget_table=False):
         self.current_state = init_state
