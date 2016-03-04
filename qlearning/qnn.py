@@ -1,8 +1,9 @@
+from collections import deque
 import numpy as np
-from qtable import QAgent
 import theano
 import theano.tensor as T
 import lasagne
+from qtable import QAgent, SimpleMaze
 
 
 class QAgentNN(QAgent):
@@ -150,4 +151,51 @@ class QAgentNN(QAgent):
             self.top = 0
             self.filled = False
 
+def wrap_state(state):
+    wrapped = ((state,),)
+    return wrapped
+
+if __name__ == '__main__':
+    maze = SimpleMaze()
+    agent = QAgentNN(dim_state=(1, 1, 2), actions=maze.actions,
+                     freeze_period=100,
+                     alpha=0.5, gamma=0.1, epsilon=0.01)
+    # logging
+    path = deque()  # path in this episode
+    episode_reward_rates = []
+    num_episodes = 0
+    cum_reward = 0
+    cum_steps = 0
+
+    # repeatedly run episodes
+    while True:
+        maze.reset()
+        new_state = maze.observe()
+        agent.reset(init_state=wrap_state(new_state))
+
+        path.clear()
+        path.append(new_state)
+        episode_reward = 0
+        episode_steps = 0
+
+        # interact and reinforce repeatedly
+        while not maze.finished():
+            action = agent.act()
+            new_state, reward = maze.interact(action)
+            agent.reinforce(new_state=wrap_state(new_state), reward=reward)
+
+            path.append(new_state)
+            episode_reward += reward
+            episode_steps += 1
+
+        cum_steps += episode_steps
+        cum_reward += episode_reward
+        num_episodes += 1
+        episode_reward_rates.append(episode_reward / episode_steps)
+        if num_episodes % 100 == 0:
+            print num_episodes, len(agent.q_table), 1.0 * cum_reward / cum_steps, path
+    win = 50
+    # s = pd.rolling_mean(pd.Series([0]*win+episode_reward_rates), window=win, min_periods=1)
+    # s.plot()
+    # plt.show()
 
