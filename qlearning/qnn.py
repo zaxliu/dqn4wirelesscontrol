@@ -46,7 +46,7 @@ class QAgentNN(QAgent):
         return loss
 
     def lookup_table_(self, state):
-        state_var = np.zeros(tuple([1]+list(self.DIM_STATE)))
+        state_var = np.zeros(tuple([1]+list(self.DIM_STATE)), dtype=np.float32)
         state_var[0, :] = state
         return self.fun_q_lookup(state_var).ravel().tolist()
 
@@ -194,6 +194,8 @@ if __name__ == '__main__':
         episode_reward_rates.append(episode_reward / episode_steps)
         if num_episodes % 100 == 0:
             print num_episodes, 1.0 * cum_reward / cum_steps, path
+            cum_steps = 0
+            cum_reward = 0
     win = 50
     # s = pd.rolling_mean(pd.Series([0]*win+episode_reward_rates), window=win, min_periods=1)
     # s.plot()
