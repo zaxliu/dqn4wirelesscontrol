@@ -35,8 +35,8 @@ class QAgentNN(QAgent):
     def update_table_(self, new_state, reward):
         # put current experience into memory
         old_state = self.current_state
-        action = self.current_action
-        self.replay_memory.update(old_state, action, new_state, reward)
+        idx_action = self.ACTIONS.index(self.current_action)
+        self.replay_memory.update(old_state, idx_action, reward, new_state)
         loss = None
         # sample memory and train network every freeze period (after dry-run)
         if (self.freeze_counter % self.FREEZE_PERIOD) == 0 and self.replay_memory.isfilled():
@@ -48,7 +48,7 @@ class QAgentNN(QAgent):
     def lookup_table_(self, state):
         state_var = np.zeros(tuple([1]+list(self.DIM_STATE)))
         state_var[0, :] = state
-        return self.fun_q_lookup(state_var).tolist()
+        return self.fun_q_lookup(state_var).ravel().tolist()
 
     def reset(self, init_state=None, foget_table=False, new_table=None, foget_memory=False):
         self.current_state = init_state
@@ -127,10 +127,10 @@ class QAgentNN(QAgent):
             self.top = 0
             self.filled = False
 
-        def update(self, old_state, action, reward, new_state):
+        def update(self, old_state, idx_action, reward, new_state):
             top = self.top
             self.buffer_old_state[top, :] = old_state
-            self.buffer_action[top] = action
+            self.buffer_action[top] = idx_action
             self.buffer_reward[top] = reward
             self.buffer_new_state[top, :] = new_state
             if not self.filled:
@@ -140,8 +140,8 @@ class QAgentNN(QAgent):
         def sample_batch(self):
             batch_idx = np.random.randint(0, self.MEMORY_SIZE, (self.BATCH_SIZE,))
             return (self.buffer_old_state[batch_idx, :],
-                    self.buffer_action[batch_idx, :],
-                    self.buffer_reward[batch_idx, :],
+                    self.buffer_action[batch_idx],
+                    self.buffer_reward[batch_idx],
                     self.buffer_new_state[batch_idx, :])
 
         def isfilled(self):
@@ -193,7 +193,7 @@ if __name__ == '__main__':
         num_episodes += 1
         episode_reward_rates.append(episode_reward / episode_steps)
         if num_episodes % 100 == 0:
-            print num_episodes, len(agent.q_table), 1.0 * cum_reward / cum_steps, path
+            print num_episodes, 1.0 * cum_reward / cum_steps, path
     win = 50
     # s = pd.rolling_mean(pd.Series([0]*win+episode_reward_rates), window=win, min_periods=1)
     # s.plot()
