@@ -1,6 +1,6 @@
 from collections import deque
-from numpy import max, abs
-from numpy.random import rand, randint
+from numpy import max, abs, exp
+from numpy.random import rand, randint, multinomial
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -49,26 +49,34 @@ class SimpleMaze:
 
 
 class QAgent(object):
-    def __init__(self, actions, alpha=1.0, gamma=0.5, epsilon=0.0, init_state=None):
+    def __init__(self, actions, alpha=1.0, gamma=0.5, epsilon=0.0, explore_strategy='fixed_epsilon', init_state=None):
         # static attributes
         self.ACTIONS = actions
         self.ALPHA = alpha  # learning rate
         self.GAMMA = gamma  # discount factor
         self.EPSILON = epsilon  # exploration probability
         self.DEFAULT_QVAL = 0  # default initial value for Q table entries
+        self.EXPLORE = explore_strategy
         # dynamic attributes
         self.current_state = init_state
         self.current_action = None
         self.q_table = {}
 
     def act(self):
-        if rand() < self.EPSILON:  # random exploration with "epsilon" prob.
-            idx_action = randint(0, len(self.ACTIONS))
-        else:  # select the best action with "1-epsilon" prob., break tie randomly
-            q_vals = self.lookup_table_(self.current_state)
-            max_qval = max(q_vals)
-            idx_best_actions = [i for i in range(len(q_vals)) if q_vals[i] == max_qval]
-            idx_action = idx_best_actions[randint(0, len(idx_best_actions))]
+        if self.EXPLORE == 'fixed_epsilon':
+            if rand() < self.EPSILON:  # random exploration with "epsilon" prob.
+                idx_action = randint(0, len(self.ACTIONS))
+            else:  # select the best action with "1-epsilon" prob., break tie randomly
+                q_vals = self.lookup_table_(self.current_state)
+                max_qval = max(q_vals)
+                idx_best_actions = [i for i in range(len(q_vals)) if q_vals[i] == max_qval]
+                idx_action = idx_best_actions[randint(0, len(idx_best_actions))]
+        elif self.EXPLORE == 'soft_probability':
+                q_vals = self.lookup_table_(self.current_state)
+                exp_q_vals = exp(q_vals)
+                idx_action = multinomial(1, exp_q_vals/sum(exp_q_vals)).nonzero()[0][0]
+        else:
+            raise ValueError('Unknown keyword for exploration strategy!')
         self.current_action = self.ACTIONS[idx_action]
         return self.current_action
 
@@ -98,7 +106,7 @@ class QAgent(object):
 
 if __name__ == "__main__":
     maze = SimpleMaze()
-    agent = QAgent(actions=maze.actions, alpha=0.5, gamma=0.1, epsilon=0.01)
+    agent = QAgent(actions=maze.actions, alpha=0.5, gamma=0.5, explore_strategy='soft_probability')
     # logging
     path = deque()  # path in this episode
     episode_reward_rates = []

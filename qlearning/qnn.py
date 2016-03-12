@@ -1,3 +1,4 @@
+import os
 from collections import deque
 import numpy as np
 import theano
@@ -10,12 +11,12 @@ class QAgentNN(QAgent):
     def __init__(self, dim_state, actions, init_state=None,         # basics
                  net=None, batch_size=100, learning_rate=0.01, momentum=0.9,      # nn training related
                  freeze_period=0, memory_size=500,                  # replay memory related
-                 alpha=1.0, gamma=0.5, epsilon=0.0                  # ql related
-                 ):
+                 alpha=1.0, gamma=0.5, epsilon=0.0,                 # ql related
+                 explore_strategy='fixed_epsilon'):
         # escalate params to parent basic q agent
         super(QAgentNN, self).__init__(actions=actions, alpha=alpha,
                                        gamma=gamma, epsilon=epsilon,
-                                       init_state=init_state)
+                                       init_state=init_state, explore_strategy=explore_strategy)
         self.DIM_STATE = dim_state  # mush be in form (d1, d2, d3), i.e. three dimensions
         self.FREEZE_PERIOD = freeze_period
         self.MEMORY_SIZE = memory_size
@@ -159,7 +160,9 @@ if __name__ == '__main__':
     maze = SimpleMaze()
     agent = QAgentNN(dim_state=(1, 1, 2), actions=maze.actions,
                      freeze_period=100,
-                     alpha=0.5, gamma=0.1, epsilon=0.01)
+                     alpha=0.5, gamma=0.5, explore_strategy='soft_probability')
+    print "Maze and angent initialized!"
+
     # logging
     path = deque()  # path in this episode
     episode_reward_rates = []
@@ -182,20 +185,21 @@ if __name__ == '__main__':
         while not maze.finished():
             action = agent.act()
             new_state, reward = maze.interact(action)
-            agent.reinforce(new_state=wrap_state(new_state), reward=reward)
-
+            loss = agent.reinforce(new_state=wrap_state(new_state), reward=reward)
+            # print action,
+            # print new_state,
             path.append(new_state)
             episode_reward += reward
             episode_steps += 1
-
+        # print len(path),
+        # print ""
         cum_steps += episode_steps
         cum_reward += episode_reward
         num_episodes += 1
         episode_reward_rates.append(episode_reward / episode_steps)
         if num_episodes % 100 == 0:
-            print num_episodes, 1.0 * cum_reward / cum_steps, path
-            cum_steps = 0
-            cum_reward = 0
+            # print ""
+            print num_episodes, 1.0 * cum_reward / cum_steps #, path
     win = 50
     # s = pd.rolling_mean(pd.Series([0]*win+episode_reward_rates), window=win, min_periods=1)
     # s.plot()
