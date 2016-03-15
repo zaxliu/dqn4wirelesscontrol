@@ -8,8 +8,8 @@ from qtable import QAgent, SimpleMaze
 
 
 class QAgentNN(QAgent):
-    def __init__(self, dim_state, actions, init_state=None,         # basics
-                 net=None, batch_size=100, learning_rate=0.01, momentum=0.9,      # nn training related
+    def __init__(self, dim_state, range_state, actions, init_state=None,         # basics
+                 net=None, batch_size=100, learning_rate=0.01, momentum=0.9, reward_scaling=1,      # nn training related
                  freeze_period=0, memory_size=500,                  # replay memory related
                  alpha=1.0, gamma=0.5, epsilon=0.0,                 # ql related
                  explore_strategy='fixed_epsilon'):
@@ -18,18 +18,25 @@ class QAgentNN(QAgent):
                                        gamma=gamma, epsilon=epsilon,
                                        init_state=init_state, explore_strategy=explore_strategy)
         self.DIM_STATE = dim_state  # mush be in form (d1, d2, d3), i.e. three dimensions
+        self.STATE_MEAN = np.zeros(self.DIM_STATE)
+        self.STATE_MAG = np.ones(self.DIM_STATE)
+        if range_state:
+            self.STATE_MEAN = (np.array(range_state)[:, :, :, 1]+np.array(range_state)[:, :, :, 0])/2.0  # upper bound on dims
+            self.STATE_MAG = (np.array(range_state)[:, :, :, 1]-np.array(range_state)[:, :, :, 0])/2.0  # lower bound on dims
         self.FREEZE_PERIOD = freeze_period
         self.MEMORY_SIZE = memory_size
         self.BATCH_SIZE = batch_size
         self.LEARNING_RATE = learning_rate
         self.MOMENTUM = momentum
+        self.REWARD_SCALING=reward_scaling
         # set q table as a NN
         if not net:
             net = QAgentNN.build_qnn_(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
         self.q_table = net
         self.fun_train_batch, self.fun_q_lookup = QAgentNN.init_fun_(self.q_table, self.DIM_STATE,
                                                                      self.BATCH_SIZE, self.GAMMA,
-                                                                     self.LEARNING_RATE, self.MOMENTUM)
+                                                                     self.LEARNING_RATE, self.MOMENTUM,
+                                                                     self.REWARD_SCALING)
         self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(actions))
         self.freeze_counter = 0
 
@@ -41,7 +48,9 @@ class QAgentNN(QAgent):
         loss = None
         # sample memory and train network every freeze period (after dry-run)
         if (self.freeze_counter % self.FREEZE_PERIOD) == 0 and self.replay_memory.isfilled():
-            loss = self.fun_train_batch(*self.replay_memory.sample_batch())
+            sample_old, sample_action, sample_reward, sample_new = self.replay_memory.sample_batch()
+            loss = self.fun_train_batch(self.rescale_state(sample_old), sample_action,
+                                        sample_reward, self.rescale_state(sample_new))
             self.freeze_counter = -1
         self.freeze_counter += 1
         return loss
@@ -49,7 +58,7 @@ class QAgentNN(QAgent):
     def lookup_table_(self, state):
         state_var = np.zeros(tuple([1]+list(self.DIM_STATE)), dtype=np.float32)
         state_var[0, :] = state
-        return self.fun_q_lookup(state_var).ravel().tolist()
+        return self.fun_q_lookup(self.rescale_state(state_var)).ravel().tolist()
 
     def reset(self, init_state=None, foget_table=False, new_table=None, foget_memory=False):
         self.current_state = init_state
@@ -65,22 +74,29 @@ class QAgentNN(QAgent):
     def is_memory_filled(self):
         return  self.replay_memory.isfilled()
 
+    def rescale_state(self, states):
+        return (states-self.STATE_MEAN)/self.STATE_MAG
+
     @staticmethod
     def build_qnn_(input_var=None, input_shape=None, num_outputs=None):
         if input_shape is None or num_outputs is None:
             raise ValueError('State or Action dimension not given!')
         l_in = lasagne.layers.InputLayer(shape=input_shape, input_var=input_var)
-        l_hid = lasagne.layers.DenseLayer(
+        l_hid1 = lasagne.layers.DenseLayer(
+            l_in, num_units=500,
+            nonlinearity=lasagne.nonlinearities.rectify,
+            W=lasagne.init.GlorotUniform())
+        l_hid2 = lasagne.layers.DenseLayer(
             l_in, num_units=500,
             nonlinearity=lasagne.nonlinearities.rectify,
             W=lasagne.init.GlorotUniform())
         l_out = lasagne.layers.DenseLayer(
-            l_hid, num_units=num_outputs,
+            l_hid2, num_units=num_outputs,
             nonlinearity=lasagne.nonlinearities.sigmoid)
         return l_out
 
     @staticmethod
-    def init_fun_(net, dim_state, batch_size, gamma, learning_rate, momentum):
+    def init_fun_(net, dim_state, batch_size, gamma, learning_rate, momentum, reward_scaling=1):
         """Define and compile function to train and evaluate network
         :param net:
         :param dim_state:
@@ -100,7 +116,7 @@ class QAgentNN(QAgent):
         network = net
         predict_q = lasagne.layers.get_output(layer_or_layers=network, inputs=old_states)
         predict_next_q = lasagne.layers.get_output(layer_or_layers=network, inputs=new_states)
-        target_q = rewards + gamma*T.max(predict_next_q, axis=1)
+        target_q = rewards/reward_scaling + gamma*T.max(predict_next_q, axis=1)
         # outputs
         loss = T.mean((predict_q[T.arange(batch_size), actions] - target_q)**2)
         # weight update formulas (sgd)
@@ -158,10 +174,11 @@ def wrap_state(state):
 
 if __name__ == '__main__':
     maze = SimpleMaze()
-    agent = QAgentNN(dim_state=(1, 1, 2), actions=maze.actions,
+    agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 3),(0, 4)),),),actions=maze.actions,
+                     learning_rate=0.01, reward_scaling=100,
                      freeze_period=100,
-                     alpha=0.5, gamma=0.5, explore_strategy='soft_probability')
-    print "Maze and angent initialized!"
+                     alpha=0.5, gamma=0.5, explore_strategy='fixed_epsilon', epsilon=0.2)
+    print "Maze and agent initialized!"
 
     # logging
     path = deque()  # path in this episode
@@ -180,6 +197,7 @@ if __name__ == '__main__':
         path.append(new_state)
         episode_reward = 0
         episode_steps = 0
+        episode_loss = 0
 
         # interact and reinforce repeatedly
         while not maze.finished():
@@ -191,14 +209,16 @@ if __name__ == '__main__':
             path.append(new_state)
             episode_reward += reward
             episode_steps += 1
-        # print len(path),
+            episode_loss += loss if loss else 0
+        print len(path),
+        # print "{:.3f}".format(episode_loss),
         # print ""
         cum_steps += episode_steps
         cum_reward += episode_reward
         num_episodes += 1
         episode_reward_rates.append(episode_reward / episode_steps)
         if num_episodes % 100 == 0:
-            # print ""
+            print ""
             print num_episodes, 1.0 * cum_reward / cum_steps #, path
     win = 50
     # s = pd.rolling_mean(pd.Series([0]*win+episode_reward_rates), window=win, min_periods=1)

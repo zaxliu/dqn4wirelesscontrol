@@ -106,7 +106,7 @@ class QAgent(object):
 
 if __name__ == "__main__":
     maze = SimpleMaze()
-    agent = QAgent(actions=maze.actions, alpha=0.5, gamma=0.5, explore_strategy='soft_probability')
+    agent = QAgent(actions=maze.actions, alpha=0.5, gamma=0.5, explore_strategy='fixed_epsilon', epsilon=0.2)
     # logging
     path = deque()  # path in this episode
     episode_reward_rates = []
