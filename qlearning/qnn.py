@@ -123,8 +123,8 @@ class QAgentNN(QAgent):
         params = lasagne.layers.get_all_params(network, trainable=True)
         updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=learning_rate, momentum=momentum)
         # functions
-        fun_train_batch = theano.function([old_states, actions, rewards, new_states], loss, updates=updates)  # training function for one batch
-        fun_q_lookup = theano.function([old_states], predict_q)
+        fun_train_batch = theano.function([old_states, actions, rewards, new_states], loss, updates=updates, allow_input_downcast=True)  # training function for one batch
+        fun_q_lookup = theano.function([old_states], predict_q, allow_input_downcast=True)
         return fun_train_batch, fun_q_lookup
 
     class ReplayMemory(object):
