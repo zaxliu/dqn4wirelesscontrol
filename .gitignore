@@ -6,6 +6,7 @@
 
 # ipython notebook checkpoints
 .ipynb_checkpoints/
+.save
 
 # compiled python (.pyc)
 *.pyc
