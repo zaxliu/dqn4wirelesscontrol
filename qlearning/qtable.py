@@ -8,8 +8,11 @@ import matplotlib.pyplot as plt
 class SimpleMaze:
     def __init__(self):
         self.actions = ['left', 'right', 'up', 'down']
-        self.dims = (4, 5)
-        self.goal_state = (2, 2)
+        self.DIMS = (4, 5)
+        self.GOAL_STATE = (2, 2)
+        self.GOAL_REWARD = 100
+        self.WALL_REWARD = -1
+        self.NULL_REWARD = 0
         self.state = None
         self.reset()
 
@@ -22,34 +25,36 @@ class SimpleMaze:
         return next_state, reward
 
     def transition_(self, current_state, action):
-        if current_state == self.goal_state:
-            return current_state, 0
-        elif action == 'left':
-            next_state = current_state if current_state[1] == 0 else (current_state[0], current_state[1]-1)
-        elif action == 'up':
-            next_state = current_state if current_state[0] == 0 else (current_state[0]-1, current_state[1])
-        elif action == 'right':
-            next_state = current_state if current_state[1] == (self.dims[1]-1) else (current_state[0], current_state[1]+1)
+        if action == 'up':
+            next_state, reward = (current_state, self.WALL_REWARD) if current_state[0] == 0 \
+                else ((current_state[0]-1, current_state[1]), self.NULL_REWARD)
         elif action == 'down':
-            next_state = current_state if current_state[0] == (self.dims[0]-1) else (current_state[0]+1, current_state[1])
+            next_state, reward = (current_state, self.WALL_REWARD) if current_state[0] == (self.DIMS[0] - 1) \
+                else ((current_state[0]+1, current_state[1]), self.NULL_REWARD)
+        elif action == 'left':
+            next_state, reward = (current_state, self.WALL_REWARD) if current_state[1] == 0 \
+                else ((current_state[0], current_state[1]-1), self.NULL_REWARD)
+        elif action == 'right':
+            next_state, reward = (current_state, self.WALL_REWARD) if current_state[1] == (self.DIMS[1] - 1) \
+                else ((current_state[0], current_state[1]+1), self.NULL_REWARD)
         else:
             print 'I don\'t understand this action, I\'ll stay.'
-            next_state = current_state
-        reward = 100 if next_state == self.goal_state else 0
+            next_state, reward = current_state, self.NULL_REWARD
+        reward = self.GOAL_REWARD if next_state == self.GOAL_STATE else reward
         return next_state, reward
 
     def reset(self):
-        next_state = self.goal_state
-        while next_state == self.goal_state:
-            next_state = (randint(0, self.dims[0]), randint(0, self.dims[1]))
+        next_state = self.GOAL_STATE
+        while next_state == self.GOAL_STATE:
+            next_state = (randint(0, self.DIMS[0]), randint(0, self.DIMS[1]))
         self.state = next_state
 
-    def finished(self):
-        return self.state == self.goal_state
+    def isfinished(self):
+        return self.state == self.GOAL_STATE
 
 
 class QAgent(object):
-    def __init__(self, actions, alpha=1.0, gamma=0.5, epsilon=0.0, explore_strategy='fixed_epsilon', init_state=None):
+    def __init__(self, actions, alpha=1.0, gamma=0.5, epsilon=0.0, explore_strategy='epsilon'):
         # static attributes
         self.ACTIONS = actions
         self.ALPHA = alpha  # learning rate
@@ -58,55 +63,71 @@ class QAgent(object):
         self.DEFAULT_QVAL = 0  # default initial value for Q table entries
         self.EXPLORE = explore_strategy
         # dynamic attributes
-        self.current_state = init_state
-        self.current_action = None
+        self.last_state = None
+        self.last_action = None
         self.q_table = {}
 
-    def act(self):
-        if self.EXPLORE == 'fixed_epsilon':
+    def act(self, observation):
+        state = self.o2s_(observation)  # get the corresponding internal state from observation
+        if not state:
+            idx_action = randint(0, len(self.ACTIONS))  # if observation cannot be internalized as state, random act
+        elif self.EXPLORE == 'epsilon':
             if rand() < self.EPSILON:  # random exploration with "epsilon" prob.
                 idx_action = randint(0, len(self.ACTIONS))
             else:  # select the best action with "1-epsilon" prob., break tie randomly
-                q_vals = self.lookup_table_(self.current_state)
+                q_vals = self.lookup_table_(state)
                 max_qval = max(q_vals)
                 idx_best_actions = [i for i in range(len(q_vals)) if q_vals[i] == max_qval]
                 idx_action = idx_best_actions[randint(0, len(idx_best_actions))]
         elif self.EXPLORE == 'soft_probability':
-                q_vals = self.lookup_table_(self.current_state)
+                q_vals = self.lookup_table_(state)  # observation = internal_state
                 exp_q_vals = exp(q_vals)
                 idx_action = multinomial(1, exp_q_vals/sum(exp_q_vals)).nonzero()[0][0]
         else:
             raise ValueError('Unknown keyword for exploration strategy!')
-        self.current_action = self.ACTIONS[idx_action]
-        return self.current_action
+        self.last_state = state
+        self.last_action = self.ACTIONS[idx_action]
+        return self.last_action
 
     def lookup_table_(self, state):
         # return q values of all actions at given state
         return [self.q_table[(state, a)] if (state, a) in self.q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
 
-    def reinforce(self, new_state, reward):
-        update_result = self.update_table_(new_state, reward)
-        self.current_state = new_state
+    def reinforce(self, current_observation, reward):
+        current_state = self.o2s_(current_observation)
+        last_state = self.last_state
+        last_action = self.last_action
+        if last_state is None or current_state is None:
+            update_result = None
+        else:
+            update_result = self.update_table_(last_state, last_action, reward, current_state)
         return update_result
 
-    def update_table_(self, new_state, reward):
-        current_state = self.current_state
-        current_action = self.current_action
-        best_qval = max(self.lookup_table_(new_state))
+    def update_table_(self, last_state, last_action, reward, current_state):
+        best_qval = max(self.lookup_table_(current_state))
         delta_q = reward + self.GAMMA * best_qval
-        self.q_table[(current_state, current_action)] = self.ALPHA * delta_q + (1 - self.ALPHA) * self.q_table[(current_state, current_action)] if (current_state, current_action) in self.q_table else self.DEFAULT_QVAL
+        self.q_table[(last_state, last_action)] = \
+            self.ALPHA * delta_q + (1 - self.ALPHA) * self.q_table[(last_state, last_action)] \
+                if (last_state, last_action) in self.q_table else self.DEFAULT_QVAL
         return None
 
-    def reset(self, init_state=None, foget_table=False):
-        self.current_state = init_state
-        self.current_action = None
+    def o2s_(self, ob):
+        """Converts observation to agent-internal state.
+        Observation = state for this simple agent. For more sophisticated agents, o2
+
+        """
+        return ob
+
+    def reset(self, foget_table=False):
+        self.last_state = None
+        self.last_action = None
         if foget_table:
             self.q_table = {}
 
 
 if __name__ == "__main__":
     maze = SimpleMaze()
-    agent = QAgent(actions=maze.actions, alpha=0.5, gamma=0.5, explore_strategy='fixed_epsilon', epsilon=0.2)
+    agent = QAgent(actions=maze.actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.2)
     # logging
     path = deque()  # path in this episode
     episode_reward_rates = []
@@ -117,21 +138,21 @@ if __name__ == "__main__":
     # repeatedly run episodes
     while True:
         maze.reset()
-        new_state = maze.observe()
-        agent.reset(init_state=new_state)
+        new_observation = maze.observe()
+        agent.reset()
 
         path.clear()
-        path.append(new_state)
+        path.append(new_observation)
         episode_reward = 0
         episode_steps = 0
 
         # interact and reinforce repeatedly
-        while not maze.finished():
-            action = agent.act()
-            new_state, reward = maze.interact(action)
-            agent.reinforce(new_state=new_state, reward=reward)
+        while not maze.isfinished():
+            action = agent.act(new_observation)
+            new_observation, reward = maze.interact(action)
+            agent.reinforce(current_observation=new_observation, reward=reward)
 
-            path.append(new_state)
+            path.append(new_observation)
             episode_reward += reward
             episode_steps += 1
 
@@ -141,6 +162,8 @@ if __name__ == "__main__":
         episode_reward_rates.append(episode_reward / episode_steps)
         if num_episodes % 100 == 0:
             print num_episodes, len(agent.q_table), 1.0 * cum_reward / cum_steps, path
+            cum_reward = 0
+            cum_steps = 0
     win = 50
     # s = pd.rolling_mean(pd.Series([0]*win+episode_reward_rates), window=win, min_periods=1)
     # s.plot()
