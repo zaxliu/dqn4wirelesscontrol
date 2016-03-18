@@ -40,33 +40,6 @@ class QAgentNN(QAgent):
         self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(actions))
         self.freeze_counter = 0
 
-    def reinforce(self, current_observation, reward):
-        # put current experience into memory
-        current_state = self.o2s_(current_observation)
-        last_state = self.last_state
-        idx_action = self.ACTIONS.index(self.last_action)
-        if last_state is not None or current_state is not None:
-            self.replay_memory.update(last_state, idx_action, reward, current_state)
-        else:
-            print "Warning: None states."
-        # update network if not frozen or dry run: sample memory and train network
-        loss = None
-        if (self.freeze_counter % self.FREEZE_PERIOD) == 0 and self.replay_memory.isfilled():
-            last_state, last_action, reward, current_state = self.replay_memory.sample_batch()
-            loss = self.update_table_(last_state, last_action, reward, current_state)
-            self.freeze_counter = -1
-        self.freeze_counter += 1
-        return loss
-
-    def update_table_(self, last_state, last_action, reward, current_state):
-        loss = self.fun_train_batch(self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state))
-        return loss
-
-    def lookup_table_(self, state):
-        state_var = np.zeros(tuple([1]+list(self.DIM_STATE)), dtype=np.float32)
-        state_var[0, :] = state
-        return self.fun_q_lookup(self.rescale_state(state_var)).ravel().tolist()
-
     def reset(self, foget_table=False, new_table=None, foget_memory=False):
         self.last_state = None
         self.last_action = None
@@ -77,6 +50,38 @@ class QAgentNN(QAgent):
                 raise ValueError("Please pass in a NN as new table")
         if foget_memory:
             self.ReplayMemory.reset()
+
+    def transition_(self, observation, reward):
+        # put current experience into memory
+        state = observation
+        last_state = self.last_state
+        last_action = self.last_action
+        if last_state is not None and state is not None:
+            idx_action = self.ACTIONS.index(last_action)
+            self.replay_memory.update(last_state, idx_action, reward, state)
+        return state
+
+    def reinforce_(self, state, reward):
+        # update network if not frozen or dry run: sample memory and train network
+        loss = None
+        if state is None:
+            return loss
+        else:
+            if (self.freeze_counter % self.FREEZE_PERIOD) == 0 and self.replay_memory.isfilled():
+                last_state, last_action, reward, state = self.replay_memory.sample_batch()
+                loss = self.update_table_(last_state, last_action, reward, state)
+                self.freeze_counter = -1
+            self.freeze_counter += 1
+            return loss
+
+    def update_table_(self, last_state, last_action, reward, current_state):
+        loss = self.fun_train_batch(self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state))
+        return loss
+
+    def lookup_table_(self, state):
+        state_var = np.zeros(tuple([1]+list(self.DIM_STATE)), dtype=np.float32)
+        state_var[0, :] = state
+        return self.fun_q_lookup(self.rescale_state(state_var)).ravel().tolist()
 
     def is_memory_filled(self):
         return  self.replay_memory.isfilled()
@@ -198,20 +203,17 @@ if __name__ == '__main__':
     # repeatedly run episodes
     while True:
         maze.reset()
-        new_observation = maze.observe()
         agent.reset()
-
+        action, _ = agent.observe_and_act(observation=None, reward=None)  # get and random action
         path.clear()
-        path.append(new_observation)
         episode_reward = 0
         episode_steps = 0
         episode_loss = 0
 
         # interact and reinforce repeatedly
         while not maze.isfinished():
-            action = agent.act(wrap_as_tensor3(new_observation))
             new_observation, reward = maze.interact(action)
-            loss = agent.reinforce(current_observation=wrap_as_tensor3(new_observation), reward=reward)
+            action, loss = agent.observe_and_act(observation=new_observation, reward=reward)
             # print action,
             # print new_observation,
             path.append(new_observation)
