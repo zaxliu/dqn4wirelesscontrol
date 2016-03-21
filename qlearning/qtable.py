@@ -54,8 +54,11 @@ class SimpleMaze:
 
 
 class QAgent(object):
-    def __init__(self, actions, alpha=1.0, gamma=0.5, epsilon=0.0, explore_strategy='epsilon'):
+    def __init__(self, actions=None, alpha=1.0, gamma=0.5, epsilon=0.0, explore_strategy='epsilon', **kwargs):
+        super(QAgent, self).__init__(**kwargs)
         # static attributes
+        if not actions:
+            raise ValueError("Passed in None action list.")
         self.ACTIONS = actions
         self.ALPHA = alpha  # learning rate
         self.GAMMA = gamma  # discount factor
@@ -68,7 +71,10 @@ class QAgent(object):
         self.q_table = {}
 
     def observe_and_act(self, observation, reward=None):
-        state = self.transition_(observation=observation, reward=reward)
+        try:
+            state = self.transition_(observation=observation, reward=reward)
+        except AttributeError:
+            state = observation
         update_result = self.reinforce_(state=state, reward=reward)
         action = self.act_(state=state)
         self.last_state = state
@@ -80,12 +86,6 @@ class QAgent(object):
         self.last_action = None
         if foget_table:
             self.q_table = {}
-
-    def transition_(self, observation, reward):
-        """Convert an observation to an agent-internal state
-        """
-        state = observation
-        return state
 
     def reinforce_(self, state, reward):
         """ Improve agent based on current experience (last_state, last_action, reward, state)

@@ -8,15 +8,13 @@ from qtable import QAgent, SimpleMaze
 
 
 class QAgentNN(QAgent):
-    def __init__(self, dim_state, range_state, actions,  # basics
-                 net=None, batch_size=100, learning_rate=0.01, momentum=0.9, reward_scaling=1,  # nn training related
-                 freeze_period=0, memory_size=500,  # replay memory related
-                 alpha=1.0, gamma=0.5, epsilon=0.0,  # ql related
-                 explore_strategy='fixed_epsilon'):
+    def __init__(self, dim_state, range_state,  # basics
+                 net=None, batch_size=100, learning_rate=0.01, momentum=0.9,  # nn related
+                 reward_scaling=1, freeze_period=0,
+                 memory_size=500,  # replay memory related
+                 **kwargs):
         # escalate params to parent basic q agent
-        super(QAgentNN, self).__init__(actions=actions, alpha=alpha,
-                                       gamma=gamma, epsilon=epsilon,
-                                       explore_strategy=explore_strategy)
+        super(QAgentNN, self).__init__(**kwargs)
         self.DIM_STATE = dim_state  # mush be in form (d1, d2, d3), i.e. three dimensions
         self.STATE_MEAN = np.zeros(self.DIM_STATE)
         self.STATE_MAG = np.ones(self.DIM_STATE)
@@ -52,10 +50,14 @@ class QAgentNN(QAgent):
             self.ReplayMemory.reset()
 
     def transition_(self, observation, reward):
-        # put current experience into memory
-        state = observation
+        # register current experience
+        try:
+            state = self.o2s_(observation=observation)
+        except AttributeError:
+            state = observation
         last_state = self.last_state
         last_action = self.last_action
+        # update current experience into replay memory
         if last_state is not None and state is not None:
             idx_action = self.ACTIONS.index(last_action)
             self.replay_memory.update(last_state, idx_action, reward, state)
@@ -182,12 +184,23 @@ class QAgentNN(QAgent):
 
 
 def wrap_as_tensor3(observation):
-    wrapped = ((observation,),)
+    """Wrap observations with <3 dimiensions to be 3-dim tensor
+    Current implementation of NN-based Q agent only takes 3-dimensional tensor as observation. In case the environment
+    only provides observations with <3 dims, this help function can be used to wrap observation up as tensor3.
+
+    Parameters
+    ----------
+    observation :
+    Returns : wrapped
+    -------
+
+    """
+    wrapped = ((observation,),)  # assume observation to be single-dimensional
     return wrapped
 
 if __name__ == '__main__':
     maze = SimpleMaze()
-    agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 3),(0, 4)),),),actions=maze.actions,
+    agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 3),(0, 4)),),), actions=maze.actions,
                      learning_rate=0.01, reward_scaling=100, batch_size=100,
                      freeze_period=100, memory_size=1000,
                      alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02)
