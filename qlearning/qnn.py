@@ -13,8 +13,8 @@ class QAgentNN(QAgent):
                  reward_scaling=1, freeze_period=0,
                  memory_size=500,  # replay memory related
                  **kwargs):
-        # escalate params to parent basic q agent
         super(QAgentNN, self).__init__(**kwargs)
+
         self.DIM_STATE = dim_state  # mush be in form (d1, d2, d3), i.e. three dimensions
         self.STATE_MEAN = np.zeros(self.DIM_STATE)
         self.STATE_MAG = np.ones(self.DIM_STATE)
@@ -26,7 +26,7 @@ class QAgentNN(QAgent):
         self.BATCH_SIZE = batch_size
         self.LEARNING_RATE = learning_rate
         self.MOMENTUM = momentum
-        self.REWARD_SCALING=reward_scaling
+        self.REWARD_SCALING = reward_scaling
         # set q table as a NN
         if not net:
             net = QAgentNN.build_qnn_(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
@@ -35,7 +35,7 @@ class QAgentNN(QAgent):
                                                                      self.BATCH_SIZE, self.GAMMA,
                                                                      self.LEARNING_RATE, self.MOMENTUM,
                                                                      self.REWARD_SCALING)
-        self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(actions))
+        self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(self.ACTIONS))
         self.freeze_counter = 0
 
     def reset(self, foget_table=False, new_table=None, foget_memory=False):
@@ -50,11 +50,7 @@ class QAgentNN(QAgent):
             self.ReplayMemory.reset()
 
     def transition_(self, observation, reward):
-        # register current experience
-        try:
-            state = self.o2s_(observation=observation)
-        except AttributeError:
-            state = observation
+        state = observation
         last_state = self.last_state
         last_action = self.last_action
         # update current experience into replay memory
@@ -182,21 +178,6 @@ class QAgentNN(QAgent):
             self.top = 0
             self.filled = False
 
-
-def wrap_as_tensor3(observation):
-    """Wrap observations with <3 dimiensions to be 3-dim tensor
-    Current implementation of NN-based Q agent only takes 3-dimensional tensor as observation. In case the environment
-    only provides observations with <3 dims, this help function can be used to wrap observation up as tensor3.
-
-    Parameters
-    ----------
-    observation :
-    Returns : wrapped
-    -------
-
-    """
-    wrapped = ((observation,),)  # assume observation to be single-dimensional
-    return wrapped
 
 if __name__ == '__main__':
     maze = SimpleMaze()

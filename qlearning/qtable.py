@@ -71,12 +71,12 @@ class QAgent(object):
         self.q_table = {}
 
     def observe_and_act(self, observation, reward=None):
-        try:
+        try:  # update agent state if a transition_() method is provided
             state = self.transition_(observation=observation, reward=reward)
-        except AttributeError:
+        except AttributeError:  # if not, use observation as agent state
             state = observation
-        update_result = self.reinforce_(state=state, reward=reward)
-        action = self.act_(state=state)
+        update_result = self.reinforce_(state=state, reward=reward)  # improve agent given current state and reward
+        action = self.act_(state=state)  # choose an action based on current state
         self.last_state = state
         self.last_action = action
         return action, update_result
@@ -118,7 +118,7 @@ class QAgent(object):
         -------
 
         """
-        if not state:
+        if state is None:
             idx_action = randint(0, len(self.ACTIONS))  # if state cannot be internalized as state, random act
         elif self.EXPLORE == 'epsilon':
             if rand() < self.EPSILON:  # random exploration with "epsilon" prob.
