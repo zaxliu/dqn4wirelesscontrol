@@ -116,9 +116,9 @@ class QAgent(object):
         return update_result
 
     def update_table_(self, last_state, last_action, reward, current_state):
-        last_state = tuple(last_state)
-        current_state = tuple(current_state)
         best_qval = max(self.lookup_table_(current_state))
+        last_state = tuple(last_state.ravel())
+        current_state = tuple(current_state.ravel())
         delta_q = reward + self.GAMMA * best_qval
         self.q_table[(last_state, last_action)] = \
             self.ALPHA * delta_q + (1 - self.ALPHA) * self.q_table[(last_state, last_action)] \
@@ -150,7 +150,7 @@ class QAgent(object):
     def lookup_table_(self, state):
         """ return the q values of all actions at a given state
         """
-        state = tuple(state)
+        state = tuple(state.ravel())
         return [self.q_table[(state, a)] if (state, a) in self.q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
 
 
