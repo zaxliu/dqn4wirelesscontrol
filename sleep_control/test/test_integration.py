@@ -1,9 +1,9 @@
 import time
 import pandas as pd
-from integration import Emulation
-from traffic_emulator import TrafficEmulator
-from traffic_server import TrafficServer
-from controller import DummyController
+from sleep_control.integration import Emulation
+from sleep_control.traffic_emulator import TrafficEmulator
+from sleep_control.traffic_server import TrafficServer
+from sleep_control.controller import DummyController
 
 pd.set_option('mode.chained_assignment', None)
 

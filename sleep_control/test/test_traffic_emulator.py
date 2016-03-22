@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import json
-from traffic_emulator import TrafficEmulator
+from sleep_control.traffic_emulator import TrafficEmulator
 
 pd.set_option('mode.chained_assignment', None)
 

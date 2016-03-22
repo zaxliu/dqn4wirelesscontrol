@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import json
-from traffic_server import TrafficServer
+from sleep_control.traffic_server import TrafficServer
 pd.set_option('mode.chained_assignment', None)
 
 # Initialize
