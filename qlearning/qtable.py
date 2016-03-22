@@ -54,8 +54,12 @@ class SimpleMaze:
 
 
 class QAgent(object):
-    def __init__(self, actions=None, alpha=1.0, gamma=0.5, epsilon=0.0, explore_strategy='epsilon', **kwargs):
+    """Base class for Q learning with a default table-based implementation.
+
+    """
+    def __init__(self, actions=None, alpha=1.0, gamma=0.5, epsilon=0.02, explore_strategy='epsilon', **kwargs):
         super(QAgent, self).__init__(**kwargs)
+
         # static attributes
         if not actions:
             raise ValueError("Passed in None action list.")
@@ -65,18 +69,30 @@ class QAgent(object):
         self.EPSILON = epsilon  # exploration probability
         self.DEFAULT_QVAL = 0  # default initial value for Q table entries
         self.EXPLORE = explore_strategy
+
         # dynamic attributes
         self.last_state = None
         self.last_action = None
         self.q_table = {}
 
     def observe_and_act(self, observation, reward=None):
+        """A single learning step
+        Try to call a transition_() method to internalize current observation and reward as agent state. If no such
+        method is provided, the raw observation is used as agent state.
+        """
+        # Internalize observation and reward
         try:  # update agent state if a transition_() method is provided
             state = self.transition_(observation=observation, reward=reward)
-        except AttributeError:  # if not, use observation as agent state
+        except AttributeError:  # otherwise use observation as agent state
             state = observation
-        update_result = self.reinforce_(state=state, reward=reward)  # improve agent given current state and reward
-        action = self.act_(state=state)  # choose an action based on current state
+
+        # Improve agent given current state and reward
+        update_result = self.reinforce_(state=state, reward=reward)
+
+        # Choose action based on current state
+        action = self.act_(state=state)
+
+        # Update
         self.last_state = state
         self.last_action = action
         return action, update_result
@@ -100,22 +116,17 @@ class QAgent(object):
         return update_result
 
     def update_table_(self, last_state, last_action, reward, current_state):
+        last_state = tuple(last_state)
+        current_state = tuple(current_state)
         best_qval = max(self.lookup_table_(current_state))
         delta_q = reward + self.GAMMA * best_qval
         self.q_table[(last_state, last_action)] = \
             self.ALPHA * delta_q + (1 - self.ALPHA) * self.q_table[(last_state, last_action)] \
-                if (last_state, last_action) in self.q_table else self.DEFAULT_QVAL
+            if (last_state, last_action) in self.q_table else self.DEFAULT_QVAL
         return None
 
     def act_(self, state):
         """Agent choose an action based on current state.
-
-        Parameters
-        ----------
-        state
-
-        Returns
-        -------
 
         """
         if state is None:
@@ -139,6 +150,7 @@ class QAgent(object):
     def lookup_table_(self, state):
         """ return the q values of all actions at a given state
         """
+        state = tuple(state)
         return [self.q_table[(state, a)] if (state, a) in self.q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
 
 
