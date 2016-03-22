@@ -74,3 +74,27 @@ class PhiMixin(object):
             raise ValueError("Unsupported observation shape {}".format(ob.shape))
         state = np.concatenate([ob, ac])
         return state
+
+
+class AnealMixin(object):
+    def __init__(self, recipe=None, **kwargs):
+        self.STEPS = []
+        self.EPSILONS = []
+        self.step_counter = 0
+        self.step_ptr = 0
+        if recipe is None:
+            recipe = {}
+        steps = recipe.keys()
+        steps.sort()
+        for step in steps:
+            self.STEPS.append(step)
+            self.EPSILONS.append(recipe[step])
+        super(AnealMixin, self).__init__(**kwargs)
+
+    def observe_and_act(self, observation, reward=None):
+        if self.step_ptr < len(self.STEPS):
+            if self.step_counter > self.STEPS[self.step_ptr]:
+                self.EPSILON = self.EPSILONS[self.step_ptr]
+                self.step_ptr += 1
+            self.step_counter += 1
+        return super(AnealMixin, self).observe_and_act(observation, reward)

@@ -1,4 +1,4 @@
-from collections import deque
+from collections import deque, Hashable
 from numpy import max, abs, exp
 from numpy.random import rand, randint, multinomial
 import pandas as pd
@@ -117,8 +117,8 @@ class QAgent(object):
 
     def update_table_(self, last_state, last_action, reward, current_state):
         best_qval = max(self.lookup_table_(current_state))
-        last_state = tuple(last_state.ravel())
-        current_state = tuple(current_state.ravel())
+        if not isinstance(last_state, Hashable):
+            last_state = tuple(last_state.ravel())  # passed in numpy array
         delta_q = reward + self.GAMMA * best_qval
         self.q_table[(last_state, last_action)] = \
             self.ALPHA * delta_q + (1 - self.ALPHA) * self.q_table[(last_state, last_action)] \
@@ -150,7 +150,8 @@ class QAgent(object):
     def lookup_table_(self, state):
         """ return the q values of all actions at a given state
         """
-        state = tuple(state.ravel())
+        if not isinstance(state, Hashable):
+            state = tuple(state.ravel())
         return [self.q_table[(state, a)] if (state, a) in self.q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
 
 
