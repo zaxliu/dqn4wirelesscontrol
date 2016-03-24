@@ -6,7 +6,7 @@ from sleep_control.traffic_emulator import TrafficEmulator
 pd.set_option('mode.chained_assignment', None)
 
 # Setting up data
-session_df = pd.read_csv(filepath_or_buffer='./data/net_traffic_nonull_sample.dat', sep=',', names=['uid','location','startTime_unix','duration_ms','domainProviders','domainTypes','domains','bytesByDomain','requestsByDomain'])
+session_df = pd.read_csv(filepath_or_buffer='../data/net_traffic_nonull_sample.dat', sep=',', names=['uid','location','startTime_unix','duration_ms','domainProviders','domainTypes','domains','bytesByDomain','requestsByDomain'])
 session_df.index.name = 'sessionID'
 session_df['endTime_unix'] = session_df['startTime_unix'] + session_df['duration_ms']
 session_df['startTime_datetime'] = pd.to_datetime(session_df['startTime_unix'], unit='ms')  # convert start time to readible date_time strings

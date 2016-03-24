@@ -3,12 +3,13 @@ import pandas as pd
 from sleep_control.integration import Emulation
 from sleep_control.traffic_emulator import TrafficEmulator
 from sleep_control.traffic_server import TrafficServer
-from sleep_control.controller import DummyController
+from sleep_control.controller import QTableController, DummyController
+from qlearning.qtable import QAgent
 
 pd.set_option('mode.chained_assignment', None)
 
 # Setting up data
-session_df = pd.read_csv(filepath_or_buffer='./data/net_traffic_nonull_sample.dat', sep=',', names=['uid','location','startTime_unix','duration_ms','domainProviders','domainTypes','domains','bytesByDomain','requestsByDomain'])
+session_df = pd.read_csv(filepath_or_buffer='../data/net_traffic_nonull_sample.dat', sep=',', names=['uid','location','startTime_unix','duration_ms','domainProviders','domainTypes','domains','bytesByDomain','requestsByDomain'])
 session_df.index.name = 'sessionID'
 session_df['endTime_unix'] = session_df['startTime_unix'] + session_df['duration_ms']
 session_df['startTime_datetime'] = pd.to_datetime(session_df['startTime_unix'], unit='ms')  # convert start time to readible date_time strings
@@ -22,7 +23,9 @@ session_df['interArrivalDuration_ms'] = session_df.groupby('location')['startTim
 # Setting up Emulation
 te = TrafficEmulator(session_df=session_df, time_step=pd.Timedelta(minutes=1))
 ts = TrafficServer()
-c = DummyController()
+actions = [(s, c) for s in [True, False] for c in ['serve_all', 'queue_all', 'random_serve_and_queue']]
+agent = QAgent(actions=actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
+c = QTableController(agent=agent)
 emu = Emulation(te=te, ts=ts, c=c)
 
 # run...

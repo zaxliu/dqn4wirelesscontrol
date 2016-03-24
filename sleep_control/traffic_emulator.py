@@ -89,6 +89,7 @@ class TrafficEmulator:
         if self.verbose > 0:
             print "get_traffic(): appending incoming sessions to buffer."
         self.__append_to_active_sessions__(incoming_sessions)
+
         # ===========================================================
         # 2. Generate traffic according active session buffer content
         if self.verbose > 0:
@@ -101,7 +102,7 @@ class TrafficEmulator:
     def serve_and_reward(self, service_df):
         if self.epoch is not None:
             # Update active session buffer and emit reward according to the service provided
-            service_reward = self.__interact__(service_df=service_df)
+            service_reward = self.__evaluate_service__(service_df=service_df)
             # Increase timer by one epoch
             self.epoch += 1
         else:
@@ -228,7 +229,7 @@ class TrafficEmulator:
             # update active session buffer
             self.active_sessions.loc[sessionID, 'pendingReqID_per_domain'] = json.dumps(pendingReqID_domain)
             self.active_sessions.loc[sessionID, 'waitingReqID_per_domain'] = json.dumps(waitingReqID_domain)
-            # generate traffic_df
+            # generate current_traffic
             if len(bytesSent_req_domain) > 0:
                 traffic_df = traffic_df.append(pd.DataFrame(
                     {'sessionID': sessionID,
@@ -237,7 +238,7 @@ class TrafficEmulator:
                     ignore_index=True)
         return traffic_df
 
-    def __interact__(self, service_df):
+    def __evaluate_service__(self, service_df):
         """Modify internal state columns in active session buffer according to the service provided
 
         Interaction assumptions:
