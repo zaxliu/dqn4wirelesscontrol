@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../../')  # add project home into search path
 import time
 import pandas as pd
 from sleep_control.integration import Emulation
@@ -31,7 +33,11 @@ emu = Emulation(te=te, ts=ts, c=c)
 # run...
 while emu.epoch is not None:
     t = time.time()
-    print time.time() - t,
-    print "    ",
-    print emu.step()
+    # print time.time() - t,
+    # print "    ",
+    epoch, e_ob, action, reward = emu.step()
+    print epoch,
+    print e_ob,
+    print action,
+    print reward
 
