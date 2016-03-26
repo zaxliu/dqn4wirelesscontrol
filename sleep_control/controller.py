@@ -41,7 +41,7 @@ class DummyController(BaseController):
         self.epoch = 0
 
 
-class QTableController(BaseController):
+class QController(BaseController):
     def __init__(self, agent=None):
         if agent is None:
             raise ValueError("Please pass in agent!")
