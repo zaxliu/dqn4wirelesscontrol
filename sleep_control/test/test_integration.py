@@ -5,8 +5,9 @@ import pandas as pd
 from sleep_control.integration import Emulation
 from sleep_control.traffic_emulator import TrafficEmulator
 from sleep_control.traffic_server import TrafficServer
-from sleep_control.controller import QTableController, DummyController
+from sleep_control.controller import QController, DummyController
 from qlearning.qtable import QAgent
+from qlearning.qnn import QAgentNN
 
 pd.set_option('mode.chained_assignment', None)
 
@@ -28,8 +29,12 @@ print "Setting up Emulation environment..."
 te = TrafficEmulator(session_df=session_df, time_step=pd.Timedelta(minutes=1))
 ts = TrafficServer()
 actions = [(s, c) for s in [True, False] for c in ['serve_all', 'queue_all', 'random_serve_and_queue']]
-agent = QAgent(actions=actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
-c = QTableController(agent=agent)
+# agent = QAgent(actions=actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
+agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 1000), (0, 1000)),),),
+                 learning_rate=0.01, reward_scaling=1000, batch_size=100, freeze_period=100, memory_size=1000,
+                 actions=actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1
+                 )
+c = QController(agent=agent)
 emu = Emulation(te=te, ts=ts, c=c)
 
 print "Emulation starting"
