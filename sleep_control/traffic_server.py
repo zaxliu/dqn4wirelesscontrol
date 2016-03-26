@@ -109,7 +109,6 @@ class TrafficServer:
         service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'])
         service_str = control_req  # service command for queued and incoming requests
         q = None
-
         # 1. serve all queued requests
         if service_str == 'serve_all':
             q = self.dequeue_all_traffic_()  # deque all queued traffic
@@ -130,7 +129,9 @@ class TrafficServer:
                 # if multiple entries with same sessionID exist, merge into one entry
                 idx_old = (int(sessionID) == q['sessionID']).nonzero()[0][0]
                 if idx != idx_old:
-                    service_req_domain_old = json.loads(q.loc[idx_old, 'service_per_request_per_domain'])
+                    print idx,
+		    print idx_old
+		    service_req_domain_old = json.loads(q.loc[idx_old, 'service_per_request_per_domain'])
                     for domain in service_req_domain:
                         for reqID in service_req_domain[domain]:
                             if domain not in service_req_domain_old:
@@ -162,6 +163,8 @@ class TrafficServer:
                 # if multiple entries with same sessionID exist, merge into one entry
                 idx_old = (int(sessionID) == q['sessionID']).nonzero()[0][0]
                 if idx != idx_old:
+                    print idx,
+                    print idx_old
                     service_req_domain_old = json.loads(q.loc[idx_old, 'service_per_request_per_domain'])
                     for domain in service_req_domain:
                         for reqID in service_req_domain[domain]:
@@ -210,6 +213,8 @@ class TrafficServer:
                 # if multiple entries with same sessionID exist, merge into one entry
                 idx_old = (int(sessionID) == q['sessionID']).nonzero()[0][0]
                 if idx != idx_old:
+                    print idx,
+                    print idx_old
                     service_req_domain_old = json.loads(q.loc[idx_old, 'service_per_request_per_domain'])
                     for domain in service_req_domain:
                         for reqID in service_req_domain[domain]:
