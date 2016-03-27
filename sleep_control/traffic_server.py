@@ -27,20 +27,24 @@ class TrafficServer:
 
     # Public Methods
     def observe(self, traffic_df):
-        """Compile observation from current traffic and queue
+        """Compile observation
+        traffic_observation = self.observe_traffic_(traffic_df_cp)
+        q_observation = self.observe_q_(self.q)
+
         Observe from traffic and queue, then compile a summary as information.
         """
         if traffic_df is None:
             raise ValueError("Please feed traffic.")
 
-        # Enqueue traffic
+        # Compile observation
+        traffic_observation = self.observe_traffic_(traffic_df)
+        q_observation = self.observe_q_(self.q)
+        
+	# Enqueue traffic
         traffic_df_cp = traffic_df.copy()
         traffic_df_cp['arriveTime_epoch'] = self.epoch
         self.q = self.q.append(traffic_df_cp, ignore_index=True)
 
-        # Compile observation
-        traffic_observation = self.observe_traffic_(traffic_df_cp)
-        q_observation = self.observe_q_(self.q)
         return traffic_observation, q_observation
 
     def get_service_and_cost(self, control):
@@ -123,18 +127,22 @@ class TrafficServer:
             num_req_serve += num_req_serve_row
             num_req_queue += num_req_queue_row
         self.q.drop(drop_indices, inplace=True)
+	if self.verbose > 1:
+	    print "**",
+	    print "TrafficServer.serve_requests_(): dropped {} q entries".format(len(drop_indices))
 
         # Verbose message
         if self.verbose > 0:
+	    print "*",
             if control_req == 'serve_all':
-                print "TrafficServer.__serve_requests__(): serving all requests in queue."
+                print "TrafficServer.serve_requests_(): serving all requests in queue."
             elif control_req == 'queue_all':
-                print "TrafficServer.__serve_requests__(): queuing all requests in queue."
+                print "TrafficServer.serve_requests_(): queuing all requests in queue."
             elif control_req == 'random_serve_and_queue':
-                print "TrafficServer.__serve_requests__(): serving {} request and queueing {} requests.".format(
+                print "TrafficServer.serve_requests_(): serving {} request and queueing {} requests.".format(
                     num_req_serve, num_req_queue)
             else:
-                print "TrafficServer.__serve_requests__(): control command not understood, return empty service_df."
+                print "TrafficServer.serve_requests_(): control command not understood, return empty service_df."
         return service_df
 
     @staticmethod
