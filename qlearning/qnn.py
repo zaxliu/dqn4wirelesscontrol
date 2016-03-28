@@ -41,6 +41,7 @@ class QAgentNN(QAgent):
     def reset(self, foget_table=False, new_table=None, foget_memory=False):
         self.last_state = None
         self.last_action = None
+        self.freeze_counter = 0
         if foget_table:
             if isinstance(new_table, lasagne.layers.Layer):
                 self.q_table = new_table
@@ -61,15 +62,19 @@ class QAgentNN(QAgent):
 
     def reinforce_(self, state, reward):
         # update network if not frozen or dry run: sample memory and train network
-        loss = None
         if state is None:
-            return loss
+            # print "  QAgentNN: ",
+            # print "state is None"
+            return None
         else:
+            loss = None
             if (self.freeze_counter % self.FREEZE_PERIOD) == 0 and self.replay_memory.isfilled():
                 last_state, last_action, reward, state = self.replay_memory.sample_batch()
                 loss = self.update_table_(last_state, last_action, reward, state)
-                self.freeze_counter = -1
+                self.freeze_counter = 0
             self.freeze_counter += 1
+            # print "  QAgentNN: ",
+            # print "loss is {} at {}".format(loss, self.freeze_counter)
             return loss
 
     def update_table_(self, last_state, last_action, reward, current_state):
@@ -183,7 +188,7 @@ if __name__ == '__main__':
     maze = SimpleMaze()
     agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 3),(0, 4)),),), actions=maze.actions,
                      learning_rate=0.01, reward_scaling=100, batch_size=100,
-                     freeze_period=100, memory_size=1000,
+                     freeze_period=20, memory_size=1000,
                      alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02)
     print "Maze and agent initialized!"
 
