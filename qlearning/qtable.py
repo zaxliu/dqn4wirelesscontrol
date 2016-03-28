@@ -155,7 +155,7 @@ class QAgent(object):
                 idx_action = multinomial(1, exp_q_vals/sum(exp_q_vals)).nonzero()[0][0]
                 if self.verbose > 0:
                     print "  QAgent: ",
-                    print "choose best q among {} (SoftProb).".format(q_vals)
+                    print "choose best q among {} (SoftProb).".format(dict(zip(self.ACTIONS, q_vals)))
         else:
             raise ValueError('Unknown keyword for exploration strategy!')
         return self.ACTIONS[idx_action]
