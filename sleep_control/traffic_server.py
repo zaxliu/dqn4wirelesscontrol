@@ -40,7 +40,7 @@ class TrafficServer:
         traffic_observation = self.observe_traffic_(traffic_df)
         q_observation = self.observe_q_(self.q)
         
-	# Enqueue traffic
+    # Enqueue traffic
         traffic_df_cp = traffic_df.copy()
         traffic_df_cp['arriveTime_epoch'] = self.epoch
         self.q = self.q.append(traffic_df_cp, ignore_index=True)
@@ -53,6 +53,9 @@ class TrafficServer:
 
         sleep_flag, control_req = control  # extract control commands
         if sleep_flag:
+            if self.verbose > 0:
+                print "  TrafficServer: ",
+                print "Sleeping."
             service = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'])
             cost = 0
         else:
@@ -127,22 +130,24 @@ class TrafficServer:
             num_req_serve += num_req_serve_row
             num_req_queue += num_req_queue_row
         self.q.drop(drop_indices, inplace=True)
-	if self.verbose > 1:
-	    print "**",
-	    print "TrafficServer.serve_requests_(): dropped {} q entries".format(len(drop_indices))
 
         # Verbose message
         if self.verbose > 0:
-	    print "*",
+            print "  TrafficServer:",
             if control_req == 'serve_all':
-                print "TrafficServer.serve_requests_(): serving all requests in queue."
+                print "Served all {} requests in queue.".format(num_req_serve)
             elif control_req == 'queue_all':
-                print "TrafficServer.serve_requests_(): queuing all requests in queue."
+                print "Queued all {} requests in queue.".format(num_req_queue)
             elif control_req == 'random_serve_and_queue':
-                print "TrafficServer.serve_requests_(): serving {} request and queueing {} requests.".format(
+                print "Served {} request and queued {} requests.".format(
                     num_req_serve, num_req_queue)
             else:
-                print "TrafficServer.serve_requests_(): control command not understood, return empty service_df."
+                print "Control command not understood, return empty service_df."
+
+        if self.verbose > 1:
+            print "    TrafficServer:",
+            print "Dropped {} q entries to deduplicate".format(len(drop_indices))
+
         return service_df
 
     @staticmethod

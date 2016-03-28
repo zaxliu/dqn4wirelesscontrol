@@ -55,9 +55,9 @@ class QController(BaseController):
             ob_vector = (num_req, q_len)  # total back pressure
         else:
             ob_vector = None
-        ((sleep_flag, control_req), _) = self.agent.observe_and_act(observation=ob_vector, reward=last_reward)
+        (sleep_flag, control_req), update_result = self.agent.observe_and_act(observation=ob_vector, reward=last_reward)
         self.epoch += 1
-        return sleep_flag, control_req
+        return (sleep_flag, control_req), update_result
 
     def reset(self):
         self.epoch = 0

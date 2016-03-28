@@ -63,8 +63,9 @@ class QAgentNN(QAgent):
     def reinforce_(self, state, reward):
         # update network if not frozen or dry run: sample memory and train network
         if state is None:
-            # print "  QAgentNN: ",
-            # print "state is None"
+            if self.verbose > 0:
+                print "  QAgentNN: ",
+                print "state is None, agent not updated."
             return None
         else:
             loss = None
@@ -72,9 +73,19 @@ class QAgentNN(QAgent):
                 last_state, last_action, reward, state = self.replay_memory.sample_batch()
                 loss = self.update_table_(last_state, last_action, reward, state)
                 self.freeze_counter = 0
+                if self.verbose > 0:
+                    print "  QAgentNN: ",
+                    print "update loss is {} at {}".format(loss, self.freeze_counter)
+            elif not self.replay_memory.isfilled():
+                if self.verbose > 0:
+                    print "  QAgentNN: ",
+                    print "unfull memory."
+            else:
+                if self.verbose > 0:
+                    print "  QAgentNN: ",
+                    print "frozen net at counter {}.".format(self.freeze_counter)
             self.freeze_counter += 1
-            # print "  QAgentNN: ",
-            # print "loss is {} at {}".format(loss, self.freeze_counter)
+
             return loss
 
     def update_table_(self, last_state, last_action, reward, current_state):

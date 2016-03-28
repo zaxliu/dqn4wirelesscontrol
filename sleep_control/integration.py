@@ -3,17 +3,40 @@ from traffic_server import TrafficServer
 from controller import DummyController
 
 
-class Environment:
-    """Glue logic
-
-    """
-    def __init__(self, te=None, ts=None):
+class Emulation:
+    def __init__(self, te=None, ts=None, c=None):
         self.te = TrafficEmulator() if te is None else te
-        self.ts = TrafficServer if ts is None else ts
-        self.epoch = None
-        self.reset()
+        self.ts = TrafficServer() if ts is None else ts
+        self.c = DummyController() if c is None else c
+        self.epoch = 0
+        self.last_reward = None
+        self.last_cost = None
 
-    def get_observation(self):
+    def step(self):
+        observation = self.get_observation_()
+        print "Observation: {}".format(observation)
+        if observation is None:
+            print "Run out of data, please reset!"
+            return None
+        overall_reward = self.last_reward-self.last_cost if (self.last_reward is not None and self.last_cost is not None) else 0
+        control, update_result = self.c.observe_and_control(observation=observation, last_reward=overall_reward)
+        print "Control: {}, Agent update: {}".format(control, update_result)
+        cost, reward = self.control_and_reward_(control=control)
+        print "Cost: {}, Reward: {}".format(cost, reward)
+        self.last_cost = cost
+        self.last_reward = reward
+        self.epoch += 1
+        return observation, control, cost, reward
+
+    def reset(self):
+        self.te.reset()
+        self.ts.reset()
+        self.c.reset()
+        self.epoch = 0
+        self.last_reward = None
+        self.last_cost = None
+
+    def get_observation_(self):
         traffic_df = self.te.generate_traffic()
         if traffic_df is None:
             print "Run out of data, please reset environment!"
@@ -22,43 +45,7 @@ class Environment:
             observation = self.ts.observe(traffic_df=traffic_df)
             return observation
 
-    def control_and_reward(self, control):
+    def control_and_reward_(self, control):
         service_df, cost = self.ts.get_service_and_cost(control=control)
         reward = self.te.serve_and_reward(service_df=service_df)
-        self.epoch += 1
-        return reward-cost
-
-    def reset(self):
-        self.te.reset()
-        self.ts.reset()
-        self.epoch = 0
-
-
-class Emulation:
-    def __init__(self, te=None, ts=None, c=None):
-        te = TrafficEmulator() if te is None else te
-        ts = TrafficServer() if ts is None else ts
-        c = DummyController() if c is None else c
-        self.e = Environment(te=te, ts=ts)
-        self.c = c
-        self.epoch = 0
-        self.last_reward = None
-
-    def step(self):
-        observation = self.e.get_observation()
-        if observation is None:
-            print "Run out of data, please reset!"
-            return None
-        control = self.c.observe_and_control(observation=observation, last_reward=self.last_reward)
-        reward = self.e.control_and_reward(control=control)
-        self.last_reward = reward
-        self.epoch += 1
-        return self.epoch-1, observation, control, reward
-
-    def reset(self):
-        self.e.reset()
-        self.c.reset()
-        self.epoch = 0
-        self.last_reward = None
-
-
+        return cost, reward

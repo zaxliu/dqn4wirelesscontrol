@@ -57,7 +57,7 @@ class QAgent(object):
     """Base class for Q learning with a default table-based implementation.
 
     """
-    def __init__(self, actions=None, alpha=1.0, gamma=0.5, epsilon=0.02, explore_strategy='epsilon', **kwargs):
+    def __init__(self, actions=None, alpha=1.0, gamma=0.5, epsilon=0.02, explore_strategy='epsilon', verbose=0, **kwargs):
         super(QAgent, self).__init__(**kwargs)
 
         # static attributes
@@ -69,6 +69,7 @@ class QAgent(object):
         self.EPSILON = epsilon  # exploration probability
         self.DEFAULT_QVAL = 0  # default initial value for Q table entries
         self.EXPLORE = explore_strategy
+        self.verbose = verbose
 
         # dynamic attributes
         self.last_state = None
@@ -131,18 +132,30 @@ class QAgent(object):
         """
         if state is None:
             idx_action = randint(0, len(self.ACTIONS))  # if state cannot be internalized as state, random act
+            if self.verbose > 0:
+                print "  QAgent: ",
+                print "randomly choose action (None state)."
         elif self.EXPLORE == 'epsilon':
             if rand() < self.EPSILON:  # random exploration with "epsilon" prob.
                 idx_action = randint(0, len(self.ACTIONS))
+                if self.verbose > 0:
+                    print "  QAgent: ",
+                    print "randomly choose action (Epsilon)."
             else:  # select the best action with "1-epsilon" prob., break tie randomly
                 q_vals = self.lookup_table_(state)
                 max_qval = max(q_vals)
                 idx_best_actions = [i for i in range(len(q_vals)) if q_vals[i] == max_qval]
                 idx_action = idx_best_actions[randint(0, len(idx_best_actions))]
+                if self.verbose > 0:
+                    print "  QAgent: ",
+                    print "choose best q among {} (Epsilon).".format(dict(zip(self.ACTIONS, q_vals)))
         elif self.EXPLORE == 'soft_probability':
                 q_vals = self.lookup_table_(state)  # state = internal_state
                 exp_q_vals = exp(q_vals)
                 idx_action = multinomial(1, exp_q_vals/sum(exp_q_vals)).nonzero()[0][0]
+                if self.verbose > 0:
+                    print "  QAgent: ",
+                    print "choose best q among {} (SoftProb).".format(q_vals)
         else:
             raise ValueError('Unknown keyword for exploration strategy!')
         return self.ACTIONS[idx_action]

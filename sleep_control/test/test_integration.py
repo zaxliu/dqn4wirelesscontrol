@@ -27,25 +27,27 @@ session_df['interArrivalDuration_ms'] = session_df.groupby('location')['startTim
 print "Setting up Emulation environment..."
 # Setting up Emulation
 te = TrafficEmulator(session_df=session_df, time_step=pd.Timedelta(minutes=1))
-ts = TrafficServer()
-actions = [(s, c) for s in [True, False] for c in ['serve_all', 'queue_all', 'random_serve_and_queue']]
+ts = TrafficServer(verbose=2)
+# actions = [(s, c) for s in [True, False] for c in ['serve_all', 'queue_all', 'random_serve_and_queue']]
+actions = [(True, None), (False, 'serve_all')]
 # agent = QAgent(actions=actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
 agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 1000), (0, 1000)),),),
-                 learning_rate=0.01, reward_scaling=1000, batch_size=100, freeze_period=100, memory_size=1000,
-                 actions=actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1
+                 learning_rate=0.01, reward_scaling=1000, batch_size=100, freeze_period=50, memory_size=200,
+                 actions=actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1,
+                 verbose=2
                  )
 c = QController(agent=agent)
 emu = Emulation(te=te, ts=ts, c=c)
 
 print "Emulation starting"
+print
 # run...
 while emu.epoch is not None:
-    t = time.time()
-    # print time.time() - t,
-    # print "    ",
-    epoch, e_ob, action, reward = emu.step()
-    print epoch,
-    print e_ob,
-    print action,
-    print reward
+    # log time
+    print "Epoch {}, ".format(emu.epoch),
+    left = emu.te.head_datetime + emu.te.epoch*emu.te.time_step
+    right = left + emu.te.time_step
+    print "{} - {}".format(left.strftime("%Y-%m-%d %H:%M:%S"), right.strftime("%Y-%m-%d %H:%M:%S"))
+    emu.step()
+    print
 
