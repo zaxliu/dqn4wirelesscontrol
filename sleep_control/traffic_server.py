@@ -135,11 +135,11 @@ class TrafficServer:
         if self.verbose > 0:
             print "  TrafficServer:",
             if control_req == 'serve_all':
-                print "Served all {} requests in queue.".format(num_req_serve)
+                print "Serving all {} requests in queue.".format(num_req_serve)
             elif control_req == 'queue_all':
-                print "Queued all {} requests in queue.".format(num_req_queue)
+                print "Queuing all {} requests in queue.".format(num_req_queue)
             elif control_req == 'random_serve_and_queue':
-                print "Served {} request and queued {} requests.".format(
+                print "Serving {} request and queued {} requests.".format(
                     num_req_serve, num_req_queue)
             else:
                 print "Control command not understood, return empty service_df."
