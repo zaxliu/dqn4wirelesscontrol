@@ -10,3 +10,6 @@
 
 # compiled python (.pyc)
 *.pyc
+
+# log file
+*.log

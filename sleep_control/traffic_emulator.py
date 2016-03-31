@@ -349,13 +349,13 @@ class TrafficEmulator:
             self.active_sessions.loc[sessionID, 'servedReqID_per_domain'] = json.dumps(servedReqID_domain)
             self.active_sessions.loc[sessionID, 'failedReqID_per_domain'] = json.dumps(failedReqID_domain)
 
-            if self.verbose > 0:
-                print "  TrafficEmulator.evaluate_service_(): " \
-                      "served {}, queued {}, rejected {} ({}, {}), unattended {} at epoch {}, rewarded {}".format(
-                    num_served_c, num_queued_c, num_rejected_c, num_retried_c, num_failed_c, num_unattended_c,
-                    self.epoch, reward)
-                print "  TrafficEmulator.evaluate_service_(): " \
-                      "buffer info: pending {}, waiting {}, served {}, failed {}".format(
-                    num_pending, num_waiting, num_served, num_failed)
+        if self.verbose > 0:
+            print "  TrafficEmulator.evaluate_service_(): " \
+                  "served {}, queued {}, rejected {} ({}, {}), unattended {} at epoch {}, rewarded {}".format(
+                num_served_c, num_queued_c, num_rejected_c, num_retried_c, num_failed_c, num_unattended_c,
+                self.epoch, reward)
+            print "  TrafficEmulator.evaluate_service_(): " \
+                  "buffer info: pending {}, waiting {}, served {}, failed {}".format(
+                num_pending, num_waiting, num_served, num_failed)
 
         return reward
