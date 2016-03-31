@@ -247,11 +247,12 @@ class TrafficEmulator:
 
         Interaction assumptions:
             1: if a "waiting" request is served in the current epoch, emit +1 and set state as "served".
-            2: if a "waiting" request is queued in the current epoch, emit -1 and keep the state as "waiting".
-            3. if a "waiting" request is rejected in the current epoch, then emit -1 and set state as "pending" with
+            2. if this is the last epoch, then assume all "waiting" and "pending" requests "failed", emit -10.
+            3: if a "waiting" request is queued in the current epoch, emit -1 and keep the state as "waiting".
+            4. if a "waiting" request is rejected in the current epoch, then emit -1 and set state as "pending" with
                probability 0.7 or emit -10 and set state as "failed" with probability 0.3. (0.7-persistent retransmission)
-            4. if no instruction for a request, assume the server means to "queue" it, emit -1.
-            5. if this is the last epoch, then assume all "waiting" requests "failed", emit -10.
+            5. if no instruction for a request, assume the server means to "queue" it, emit -1.
+
         :param service_df: a data frame indicating the service for each traffic row
         :return: a scalar reward for the service
         """
@@ -260,7 +261,7 @@ class TrafficEmulator:
         num_queued_c = 0
         num_rejected_c = 0
         num_retried_c = 0
-        num_failed_c = 0
+        num_canceled_c = 0
         num_unattended_c = 0
         num_pending = 0
         num_waiting = 0
@@ -297,47 +298,50 @@ class TrafficEmulator:
                 failedReqID = failedReqID_domain[domain] if domain in failedReqID_domain else []
                 # indices of requests which are served, queued, and rejected...
                 # Note: json converts key to string type
-                serveReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'serve']
-                queueReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'queue']
-                rejectReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'reject']
-                unattendReqID = [req_id for req_id in waitingReqID
+                servingReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'serve']
+                queuingReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'queue']
+                rejectingReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'reject']
+                unattendingReqID = [req_id for req_id in waitingReqID
                                  if str(req_id) not in service_req or
                                  service_req[str(req_id)] not in ['serve', 'queue', 'reject']]
-                # interactions & rewards...
-                # case 1: served requests
-                waitingReqID = list(set(waitingReqID) - set(serveReqID))
-                servedReqID = list(set(servedReqID).union(serveReqID))
-                reward += len(serveReqID)
-                num_served_c += len(servedReqID)
-                # case 2: queued requests
-                reward -= len(queueReqID)
-                num_queued_c += len(queueReqID)
-                # case 3: rejected requests
-                retryFlag = np.random.rand(len(rejectReqID)) < 0.7
-                retryReqID = np.array(rejectReqID)[retryFlag]
-                cancelReqID = np.array(rejectReqID)[~retryFlag]
-                waitingReqID = list(set(waitingReqID) - set(rejectReqID))
-                pendingReqID = list(set(pendingReqID).union(set(retryReqID)))
-                failedReqID = list(set(failedReqID).union(set(cancelReqID)))
-                reward -= len(retryReqID) + 10*len(cancelReqID)
-                num_rejected_c += len(rejectReqID)
-                num_retried_c += sum(retryFlag)
-                num_failed_c += sum(~retryFlag)
-                # case 4: unattended requests
-                reward -= len(unattendReqID)
-                num_unattended_c += sum(unattendReqID)
-                # case 5:
+
+                # Case 1: served requests
+                reward += 1*len(servingReqID)
+                waitingReqID = list(set(waitingReqID) - set(servingReqID))  # move req from waiting list to servied list
+                servedReqID = list(set(servedReqID).union(servingReqID))
+                # Case 2: end of session
                 if self.epoch == end_epoch:
                     reward -= 10*(len(pendingReqID) + len(waitingReqID))
                     failedReqID = list(set(failedReqID).union(pendingReqID).union(waitingReqID))
                     pendingReqID = []
                     waitingReqID = []
+                else:
+                    # Case 3: queued requests
+                    reward -= len(queuingReqID)
+                    # Case 4: rejected requests
+                    retryFlag = np.random.rand(len(rejectingReqID)) < 0.7
+                    retryReqID = np.array(rejectingReqID)[retryFlag]
+                    cancelReqID = np.array(rejectingReqID)[~retryFlag]
+                    waitingReqID = list(set(waitingReqID) - set(rejectingReqID))
+                    pendingReqID = list(set(pendingReqID).union(set(retryReqID)))
+                    failedReqID = list(set(failedReqID).union(set(cancelReqID)))
+                    reward -= len(retryReqID) + 10*len(cancelReqID)
+                    # case 5: unattended requests
+                    reward -= len(unattendingReqID)
 
                 # write-back dict
                 pendingReqID_domain[domain] = pendingReqID
                 waitingReqID_domain[domain] = waitingReqID
                 servedReqID_domain[domain] = servedReqID
                 failedReqID_domain[domain] = failedReqID
+
+                # counters
+                num_served_c += len(servedReqID)
+                num_queued_c += len(queuingReqID)
+                num_rejected_c += len(rejectingReqID)
+                num_retried_c += sum(retryFlag)
+                num_canceled_c += sum(~retryFlag)
+                num_unattended_c += sum(unattendingReqID)
                 num_pending += len(pendingReqID)
                 num_waiting += len(waitingReqID)
                 num_served += len(servedReqID)
@@ -352,7 +356,7 @@ class TrafficEmulator:
         if self.verbose > 0:
             print "  TrafficEmulator.evaluate_service_(): " \
                   "served {}, queued {}, rejected {} ({}, {}), unattended {} at epoch {}, rewarded {}".format(
-                num_served_c, num_queued_c, num_rejected_c, num_retried_c, num_failed_c, num_unattended_c,
+                num_served_c, num_queued_c, num_rejected_c, num_retried_c, num_canceled_c, num_unattended_c,
                 self.epoch, reward)
             print "  TrafficEmulator.evaluate_service_(): " \
                   "buffer info: pending {}, waiting {}, served {}, failed {}".format(
