@@ -22,7 +22,7 @@ class TrafficServer:
     """
     def __init__(self, verbose=0):
         self.epoch = 0
-        self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch', 'bytesSent_per_request_per_domain'])
+        self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch', 'bytesSent_per_request_domain'])
         self.verbose = verbose      # verbosity level
 
     # Public Methods
@@ -56,7 +56,7 @@ class TrafficServer:
             if self.verbose > 0:
                 print "  TrafficServer: ",
                 print "Sleeping."
-            service = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'])
+            service = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'])
             cost = 0
         else:
             service = self.serve_requests_(control_req)
@@ -66,7 +66,7 @@ class TrafficServer:
 
     def reset(self):
         self.epoch = 0
-        self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch', 'bytesSent_per_request_per_domain'])
+        self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch', 'bytesSent_per_request_domain'])
 
     # Private Methods
     @staticmethod
@@ -77,7 +77,7 @@ class TrafficServer:
         num_req = 0
         num_bytes = 0
         for idx in traffic_df.index:
-            bytesSent_req_domain = json.loads(traffic_df.loc[idx, 'bytesSent_per_request_per_domain'])
+            bytesSent_req_domain = json.loads(traffic_df.loc[idx, 'bytesSent_per_request_domain'])
             num_req += sum([len(bytesSent_req_domain[domain]) for domain in bytesSent_req_domain])
             num_bytes += sum([bytesSent_req_domain[domain][reqID]
                               for domain in bytesSent_req_domain for reqID in bytesSent_req_domain[domain]])
@@ -92,13 +92,13 @@ class TrafficServer:
         """
         q_len = 0
         for idx in q.index:
-            bytesSent_req_domain = json.loads(q.loc[idx, 'bytesSent_per_request_per_domain'])
+            bytesSent_req_domain = json.loads(q.loc[idx, 'bytesSent_per_request_domain'])
             q_len += sum([len(bytesSent_req_domain[domain]) for domain in bytesSent_req_domain])
         return q_len
 
     def dequeue_all_traffic_(self):
         q = self.q
-        self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch' 'bytesSent_per_request_per_domain'])
+        self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch' 'bytesSent_per_request_domain'])
         return q
 
     def serve_requests_(self, control_req):
@@ -107,7 +107,7 @@ class TrafficServer:
         :param control_req:
         :return:
         """
-        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'])
+        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'])
         drop_indices = []
         num_req_serve = 0
         num_req_queue = 0
@@ -115,7 +115,7 @@ class TrafficServer:
         # iterate through q, append to service_df, merge duplicated session ID, update q
         for idx in self.q.index:
             sessionID = int(self.q.loc[idx, 'sessionID'])
-            bytesSent_req_domain = json.loads(self.q.loc[idx, 'bytesSent_per_request_per_domain'])
+            bytesSent_req_domain = json.loads(self.q.loc[idx, 'bytesSent_per_request_domain'])
             service_req_domain, bytesSent_req_domain_updated, num_req_serve_row, num_req_queue_row = self.serve_row_(
                 control_req=control_req, bytesSent_req_domain=bytesSent_req_domain
             )
@@ -178,17 +178,17 @@ class TrafficServer:
         flags = (int(sessionID) == service_df['sessionID'])
         if len(flags.nonzero()[0]) == 0:  # no duplication
             service_df = service_df.append(
-                {'sessionID': sessionID, 'service_per_request_per_domain': json.dumps(service_req_domain)},
+                {'sessionID': sessionID, 'service_per_request_domain': json.dumps(service_req_domain)},
                 ignore_index=True)
         elif len(flags.nonzero()[0]) == 1:  # merge with existing row
             idx_old = flags.nonzero()[0][0]
-            service_req_domain_old = json.loads(service_df.loc[idx_old, 'service_per_request_per_domain'])
+            service_req_domain_old = json.loads(service_df.loc[idx_old, 'service_per_request_domain'])
             for domain in service_req_domain:
                 for reqID in service_req_domain[domain]:
                     if domain not in service_req_domain_old:
                         service_req_domain_old[domain] = {}
                     service_req_domain_old[domain][reqID] = service_req_domain[domain][reqID]
-            service_df.loc[idx_old, 'service_per_request_per_domain'] = json.dumps(service_req_domain_old)
+            service_df.loc[idx_old, 'service_per_request_domain'] = json.dumps(service_req_domain_old)
         else:
             raise ValueError("More than one existing entry found in service_df!")
         return service_df

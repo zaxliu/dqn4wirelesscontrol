@@ -13,7 +13,7 @@ pd.set_option('mode.chained_assignment', None)
 
 # Setting up data
 print "Reading data..."
-session_df = pd.read_csv(filepath_or_buffer='../data/net_traffic_nonull.dat', sep=',', names=['uid','location','startTime_unix','duration_ms','domainProviders','domainTypes','domains','bytesByDomain','requestsByDomain'])
+session_df = pd.read_csv(filepath_or_buffer='../data/net_traffic_nonull_sample.dat', sep=',', names=['uid','location','startTime_unix','duration_ms','domainProviders','domainTypes','domains','bytesByDomain','requestsByDomain'])
 session_df.index.name = 'sessionID'
 session_df['endTime_unix'] = session_df['startTime_unix'] + session_df['duration_ms']
 session_df['startTime_datetime'] = pd.to_datetime(session_df['startTime_unix'], unit='ms')  # convert start time to readible date_time strings
@@ -26,7 +26,7 @@ session_df['interArrivalDuration_ms'] = session_df.groupby('location')['startTim
 
 print "Setting up Emulation environment..."
 # Setting up Emulation
-te = TrafficEmulator(session_df=session_df, time_step=pd.Timedelta(minutes=1), verbose=1)
+te = TrafficEmulator(session_df=session_df, time_step=pd.Timedelta(minutes=30), verbose=1)
 ts = TrafficServer(verbose=2)
 # actions = [(s, c) for s in [True, False] for c in ['serve_all', 'queue_all', 'random_serve_and_queue']]
 actions = [(True, None), (False, 'serve_all')]
