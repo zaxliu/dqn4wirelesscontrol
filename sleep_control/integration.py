@@ -18,9 +18,12 @@ class Emulation:
         if observation is None:
             print "Run out of data, please reset!"
             return None
-        overall_reward = self.last_reward if self.last_reward is not None else 0 - self.last_cost if self.last_cost is not None else 0
-        print overall_reward
-	control, update_result = self.c.observe_and_control(observation=observation, last_reward=overall_reward)
+        if self.last_reward is None or self.last_cost is None:
+            overall_reward = None
+        else:
+            overall_reward = self.last_reward - self.last_cost
+        print "Last reward: {}".format(overall_reward)
+        control, update_result = self.c.observe_and_control(observation=observation, last_reward=overall_reward)
         print "Control: {}, Agent update: {}".format(control, update_result)
         cost, reward = self.control_and_reward_(control=control)
         print "Cost: {}, Reward: {}".format(cost, reward)

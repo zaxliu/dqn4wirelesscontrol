@@ -110,7 +110,7 @@ class QAgent(object):
         """
         last_state = self.last_state
         last_action = self.last_action
-        if last_state is None or state is None:
+        if last_state is None or state is None or reward is None:
             update_result = None
         else:
             update_result = self.update_table_(last_state, last_action, reward, state)

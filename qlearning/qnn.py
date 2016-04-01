@@ -67,6 +67,11 @@ class QAgentNN(QAgent):
                 print "  QAgentNN: ",
                 print "state is None, agent not updated."
             return None
+        elif reward is None:
+            if self.verbose > 0:
+                print "  QAgentNN: ",
+                print "reward is None, agent not updated."
+            return None
         else:
             loss = None
             if (self.freeze_counter % self.FREEZE_PERIOD) == 0 and self.replay_memory.isfilled():
