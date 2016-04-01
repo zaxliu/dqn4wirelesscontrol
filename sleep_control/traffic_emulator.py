@@ -326,6 +326,9 @@ class TrafficEmulator:
                     pendingReqID = list(set(pendingReqID).union(set(retryReqID)))
                     failedReqID = list(set(failedReqID).union(set(cancelReqID)))
                     reward -= len(retryReqID) + 10*len(cancelReqID)
+                    # counters
+                    num_retried_c += sum(retryFlag)
+                    num_canceled_c += sum(~retryFlag)
                     # case 5: unattended requests
                     reward -= len(unattendingReqID)
 
@@ -339,8 +342,6 @@ class TrafficEmulator:
                 num_served_c += len(servedReqID)
                 num_queued_c += len(queuingReqID)
                 num_rejected_c += len(rejectingReqID)
-                num_retried_c += sum(retryFlag)
-                num_canceled_c += sum(~retryFlag)
                 num_unattended_c += sum(unattendingReqID)
                 num_pending += len(pendingReqID)
                 num_waiting += len(waitingReqID)
