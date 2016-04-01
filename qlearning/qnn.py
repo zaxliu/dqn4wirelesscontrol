@@ -118,7 +118,7 @@ class QAgentNN(QAgent):
             W=lasagne.init.GlorotUniform())
         l_out = lasagne.layers.DenseLayer(
             l_hid2, num_units=num_outputs,
-            nonlinearity=lasagne.nonlinearities.sigmoid)
+            nonlinearity=lasagne.nonlinearities.tanh)
         return l_out
 
     @staticmethod
