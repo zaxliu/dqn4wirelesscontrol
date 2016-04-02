@@ -20,10 +20,13 @@ class TrafficServer:
     A important implementation feature in our current project is to give TrafficServer the ability to sleep and queue
     requests. These operational states are reflected in both the service generated and the cost emitted.
     """
-    def __init__(self, verbose=0):
+    def __init__(self, verbose=0, cost=1):
         self.epoch = 0
         self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch', 'bytesSent_per_request_domain'])
+        self.last_sleep_flag = None
+        self.last_control_req = None
         self.verbose = verbose      # verbosity level
+        self.COST = cost
 
     # Public Methods
     def observe(self, traffic_df):
@@ -51,22 +54,35 @@ class TrafficServer:
         """Generate service based on the control commands
         """
 
-        sleep_flag, control_req = control  # extract control commands
-        if sleep_flag:
+        if self.last_sleep_flag is None or (not self.last_sleep_flag and self.last_control_req is None):
+            if self.verbose > 0:
+                print "  TrafficServer: ",
+                print "None sleep flag or control req, do nothing."
+                service = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'])
+                cost = 0
+        elif self.last_sleep_flag:
             if self.verbose > 0:
                 print "  TrafficServer: ",
                 print "Sleeping."
             service = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'])
             cost = 0
         else:
-            service = self.serve_requests_(control_req)
-            cost = 1
+            if self.verbose > 0:
+                print "  TrafficServer: ",
+                print "service: {}.".format(self.last_control_req)
+            service = self.serve_requests_(self.last_control_req)
+            cost = self.COST
+        sleep_flag, control_req = control  # extract control commands
+        self.last_sleep_flag = sleep_flag
+        self.last_control_req = control_req
         self.epoch += 1
         return service, cost
 
     def reset(self):
         self.epoch = 0
         self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch', 'bytesSent_per_request_domain'])
+        self.last_sleep_flag = None
+        self.last_control_req = None
 
     # Private Methods
     @staticmethod
