@@ -93,6 +93,10 @@ class QAgentNN(QAgent):
 
             return loss
 
+    def act_(self, state):
+        # if memory is not filled, the estimated q vals are most probably wrong, thus call to choose random action.
+        return super(QAgentNN, self).act_(state if self.is_memory_filled() else None)
+
     def update_table_(self, last_state, last_action, reward, current_state):
         loss = self.fun_train_batch(self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state))
         return loss
