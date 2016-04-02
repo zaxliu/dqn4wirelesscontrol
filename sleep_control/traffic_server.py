@@ -60,7 +60,7 @@ class TrafficServer:
             cost = 0
         else:
             service = self.serve_requests_(control_req)
-            cost = 10
+            cost = 1
         self.epoch += 1
         return service, cost
 

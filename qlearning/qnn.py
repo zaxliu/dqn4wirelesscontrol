@@ -82,7 +82,7 @@ class QAgentNN(QAgent):
                     freq = itemfreq(last_actions)
                     print "    QAgentNN: ",
                     print "batch action distribution: {}".format(
-                        {freq[i, 0]: 1.0*freq[i, 1]/self.BATCH_SIZE for i in range(freq.shape[0])}
+                        {self.ACTIONS[int(freq[i, 0])]: 1.0*freq[i, 1]/self.BATCH_SIZE for i in range(freq.shape[0])}
                     )
                 if self.verbose > 0:
                     print "  QAgentNN: ",
@@ -185,19 +185,19 @@ class QAgentNN(QAgent):
             self.buffer_reward = np.zeros((self.NUM_BUFFERS, memory_size, ), dtype=np.float32)
             self.buffer_new_state = np.zeros(tuple([self.NUM_BUFFERS, memory_size]+list(self.DIM_STATE)), dtype=np.float32)
 
-            self.top = [0]*self.NUM_BUFFERS
-            self.filled = False
+            self.top = [-1]*self.NUM_BUFFERS
+            self.filled = [False]*self.NUM_BUFFERS
 
         def update(self, old_state, idx_action, reward, new_state):
             buffer_idx = idx_action % self.NUM_BUFFERS
-            top = self.top[buffer_idx]
+            top = (self.top[buffer_idx]+1) % self.MEMORY_SIZE
             self.buffer_old_state[buffer_idx, top, :] = old_state
             self.buffer_action[buffer_idx, top] = idx_action
             self.buffer_reward[buffer_idx, top] = reward
             self.buffer_new_state[buffer_idx, top, :] = new_state
-            if not self.filled:
-                self.filled |= all([self.top[i] == (self.MEMORY_SIZE-1) for i in range(self.NUM_BUFFERS)])
-            self.top[buffer_idx] = (top+1) % self.MEMORY_SIZE
+            if not self.filled[buffer_idx]:
+                self.filled[buffer_idx] |= (top == (self.MEMORY_SIZE-1))
+            self.top[buffer_idx] = top
 
         def sample_batch(self):
             sample_idx = np.random.randint(0, self.MEMORY_SIZE, (self.BATCH_SIZE,))
@@ -208,11 +208,11 @@ class QAgentNN(QAgent):
                     self.buffer_new_state[buffer_idx, sample_idx, :])
 
         def isfilled(self):
-            return self.filled
+            return all(self.filled)
 
         def reset(self):
-            self.top = [0]*self.NUM_BUFFERS
-            self.filled = False
+            self.top = [-1]*self.NUM_BUFFERS
+            self.filled = [False]*self.NUM_BUFFERS
 
 
 if __name__ == '__main__':
