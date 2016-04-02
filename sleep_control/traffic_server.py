@@ -23,9 +23,9 @@ class TrafficServer:
     def __init__(self, verbose=0, cost=1):
         self.epoch = 0
         self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch', 'bytesSent_per_request_domain'])
-        self.last_sleep_flag = None
-        self.last_control_req = None
         self.verbose = verbose      # verbosity level
+        self.last_traffic_ob = 0
+        self.last_q_ob = 0
         self.COST = cost
 
     # Public Methods
@@ -40,49 +40,40 @@ class TrafficServer:
             raise ValueError("Please feed traffic.")
 
         # Compile observation
-        traffic_observation = self.observe_traffic_(traffic_df)
-        q_observation = self.observe_q_(self.q)
+        last_traffic_ob = self.last_traffic_ob
+        last_q_ob = self.last_q_ob
+        new_q_ob = self.observe_q_(self.q)
+        self.last_traffic_ob = self.observe_traffic_(traffic_df)
+        self.last_q_ob = new_q_ob
         
-    # Enqueue traffic
+        # Enqueue traffic
         traffic_df_cp = traffic_df.copy()
         traffic_df_cp['arriveTime_epoch'] = self.epoch
         self.q = self.q.append(traffic_df_cp, ignore_index=True)
 
-        return traffic_observation, q_observation
+        return last_traffic_ob, last_q_ob, new_q_ob
 
     def get_service_and_cost(self, control):
         """Generate service based on the control commands
         """
-
-        if self.last_sleep_flag is None or (not self.last_sleep_flag and self.last_control_req is None):
-            if self.verbose > 0:
-                print "  TrafficServer: ",
-                print "None sleep flag or control req, do nothing."
-                service = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'])
-                cost = 0
-        elif self.last_sleep_flag:
-            if self.verbose > 0:
-                print "  TrafficServer: ",
-                print "Sleeping."
+        sleep_flag, control_req = control  # extract control commands
+        if sleep_flag:
             service = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'])
             cost = 0
         else:
+            service = self.serve_requests_(control_req)
+            cost = self.COST
             if self.verbose > 0:
                 print "  TrafficServer: ",
-                print "service: {}.".format(self.last_control_req)
-            service = self.serve_requests_(self.last_control_req)
-            cost = self.COST
-        sleep_flag, control_req = control  # extract control commands
-        self.last_sleep_flag = sleep_flag
-        self.last_control_req = control_req
+                print "{}".format(control)
         self.epoch += 1
         return service, cost
 
     def reset(self):
         self.epoch = 0
         self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch', 'bytesSent_per_request_domain'])
-        self.last_sleep_flag = None
-        self.last_control_req = None
+        self.last_traffic_ob = 0
+        self.last_q_ob = 0
 
     # Private Methods
     @staticmethod
@@ -97,7 +88,7 @@ class TrafficServer:
             num_req += sum([len(bytesSent_req_domain[domain]) for domain in bytesSent_req_domain])
             num_bytes += sum([bytesSent_req_domain[domain][reqID]
                               for domain in bytesSent_req_domain for reqID in bytesSent_req_domain[domain]])
-        return num_req, num_bytes
+        return num_req
 
     @staticmethod
     def observe_q_(q):

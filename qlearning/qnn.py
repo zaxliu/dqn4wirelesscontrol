@@ -50,14 +50,14 @@ class QAgentNN(QAgent):
         if foget_memory:
             self.ReplayMemory.reset()
 
-    def transition_(self, observation, reward):
+    def transition_(self, observation, last_reward):
         state = observation
         last_state = self.last_state
         last_action = self.last_action
         # update current experience into replay memory
         if last_state is not None and state is not None:
             idx_action = self.ACTIONS.index(last_action)
-            self.replay_memory.update(last_state, idx_action, reward, state)
+            self.replay_memory.update(last_state, idx_action, last_reward, state)
         return state
 
     def reinforce_(self, state, last_reward):
@@ -70,7 +70,7 @@ class QAgentNN(QAgent):
         elif last_reward is None:
             if self.verbose > 0:
                 print "  QAgentNN: ",
-                print "reward is None, agent not updated."
+                print "last_reward is None, agent not updated."
             return None
         else:
             loss = None
@@ -188,12 +188,12 @@ class QAgentNN(QAgent):
             self.top = [-1]*self.NUM_BUFFERS
             self.filled = [False]*self.NUM_BUFFERS
 
-        def update(self, old_state, idx_action, reward, new_state):
+        def update(self, last_state, idx_action, last_reward, new_state):
             buffer_idx = idx_action % self.NUM_BUFFERS
             top = (self.top[buffer_idx]+1) % self.MEMORY_SIZE
-            self.buffer_old_state[buffer_idx, top, :] = old_state
+            self.buffer_old_state[buffer_idx, top, :] = last_state
             self.buffer_action[buffer_idx, top] = idx_action
-            self.buffer_reward[buffer_idx, top] = reward
+            self.buffer_reward[buffer_idx, top] = last_reward
             self.buffer_new_state[buffer_idx, top, :] = new_state
             if not self.filled[buffer_idx]:
                 self.filled[buffer_idx] |= (top == (self.MEMORY_SIZE-1))
@@ -234,7 +234,7 @@ if __name__ == '__main__':
     while True:
         maze.reset()
         agent.reset()
-        action, _ = agent.observe_and_act(observation=None, reward=None)  # get and random action
+        action, _ = agent.observe_and_act(observation=None, last_reward=None)  # get and random action
         path.clear()
         episode_reward = 0
         episode_steps = 0
@@ -243,7 +243,7 @@ if __name__ == '__main__':
         # interact and reinforce repeatedly
         while not maze.isfinished():
             new_observation, reward = maze.interact(action)
-            action, loss = agent.observe_and_act(observation=new_observation, reward=reward)
+            action, loss = agent.observe_and_act(observation=new_observation, last_reward=reward)
             # print action,
             # print new_observation,
             path.append(new_observation)

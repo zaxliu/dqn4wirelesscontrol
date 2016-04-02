@@ -272,7 +272,7 @@ class TrafficEmulator:
             5. if no instruction for a request, assume the server means to "queue" it, emit -1.
 
         :param service_df: a data frame indicating the service for each traffic row
-        :return: a scalar reward for the service
+        :return: a scalar last_reward for the service
         """
         reward = 0  # Set initial reward to zero
         num_serving_c = 0

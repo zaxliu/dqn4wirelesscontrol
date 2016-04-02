@@ -51,11 +51,11 @@ class QController(BaseController):
 
     def observe_and_control(self, observation, last_reward=None):
         if observation is not None:
-            (num_req, num_bytes), q_len = observation
-            ob_vector = (num_req, q_len)  # total back pressure
+            last_traffic_req, last_q_len, new_q_len = observation
+            ob_vector = (last_traffic_req, last_q_len, new_q_len)  # total back pressure
         else:
             ob_vector = None
-        (sleep_flag, control_req), update_result = self.agent.observe_and_act(observation=ob_vector, reward=last_reward)
+        (sleep_flag, control_req), update_result = self.agent.observe_and_act(observation=ob_vector, last_reward=last_reward)
         self.epoch += 1
         return (sleep_flag, control_req), update_result
 

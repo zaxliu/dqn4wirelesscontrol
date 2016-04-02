@@ -48,7 +48,7 @@ cum_steps = 0
 while True:
     maze.reset()
     agent.reset()
-    action, _ = agent.observe_and_act(observation=None, reward=None)  # get and random action
+    action, _ = agent.observe_and_act(observation=None, last_reward=None)  # get and random action
     path.clear()
     episode_reward = 0
     episode_steps = 0
@@ -57,7 +57,7 @@ while True:
     # interact and reinforce repeatedly
     while not maze.isfinished():
         new_observation, reward = maze.interact(action)
-        action, loss = agent.observe_and_act(observation=new_observation, reward=reward)
+        action, loss = agent.observe_and_act(observation=new_observation, last_reward=reward)
         # print action,
         # print new_observation,
         path.append(new_observation)

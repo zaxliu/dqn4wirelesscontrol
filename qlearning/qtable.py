@@ -76,19 +76,19 @@ class QAgent(object):
         self.last_action = None
         self.q_table = {}
 
-    def observe_and_act(self, observation, reward=None):
+    def observe_and_act(self, observation, last_reward=None):
         """A single learning step
-        Try to call a transition_() method to internalize current observation and reward as agent state. If no such
+        Try to call a transition_() method to internalize current observation and last_reward as agent state. If no such
         method is provided, the raw observation is used as agent state.
         """
-        # Internalize observation and reward
+        # Internalize observation and last_reward
         try:  # update agent state if a transition_() method is provided
-            state = self.transition_(observation=observation, reward=reward)
+            state = self.transition_(observation=observation, last_reward=last_reward)
         except AttributeError:  # otherwise use observation as agent state
             state = observation
 
-        # Improve agent given current state and reward
-        update_result = self.reinforce_(state=state, last_reward=reward)
+        # Improve agent given current state and last_reward
+        update_result = self.reinforce_(state=state, last_reward=last_reward)
 
         # Choose action based on current state
         action = self.act_(state=state)
@@ -183,14 +183,14 @@ if __name__ == "__main__":
         # initialization
         maze.reset()
         agent.reset(foget_table=False)
-        action, _ = agent.observe_and_act(observation=None, reward=None)  # get and random action
+        action, _ = agent.observe_and_act(observation=None, last_reward=None)  # get and random action
         path.clear()
         episode_reward = 0
         episode_steps = 0
         # interact and reinforce repeatedly
         while not maze.isfinished():
             new_observation, reward = maze.interact(action)
-            action, _ = agent.observe_and_act(observation=new_observation, reward=reward)
+            action, _ = agent.observe_and_act(observation=new_observation, last_reward=reward)
             path.append(new_observation)
             episode_reward += reward
             episode_steps += 1

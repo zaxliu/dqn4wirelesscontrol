@@ -13,16 +13,17 @@ class Emulation:
         self.last_cost = None
 
     def step(self):
-        observation = self.get_observation_()
-        print "Observation: {}".format(observation)
-        if observation is None:
-            print "Run out of data, please reset!"
-            return None
         if self.last_reward is None or self.last_cost is None:
             overall_reward = None
         else:
             overall_reward = self.last_reward - self.last_cost
         print "Last reward: {}".format(overall_reward)
+        observation = self.get_observation_()
+        print "Observation: {}".format(observation)
+        if observation is None:
+            print "Run out of data, please reset!"
+            return None
+
         control, update_result = self.c.observe_and_control(observation=observation, last_reward=overall_reward)
         print "Control: {}, Agent update: {}".format(control, update_result)
         cost, reward = self.control_and_reward_(control=control)

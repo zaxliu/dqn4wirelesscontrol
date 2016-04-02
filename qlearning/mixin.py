@@ -16,7 +16,7 @@ class PhiMixin(object):
         self.phi_buffer = deque()
         super(PhiMixin, self).__init__(**kwargs)  # pass on key-word arguments for initialization of parent classes
 
-    def transition_(self, observation, reward):
+    def transition_(self, observation, last_reward):
         """The Phi function
         This is where other classes make function calls. In the end, escalate function call to the transition_() method
         of the parent class to act like a "decorator".
@@ -24,7 +24,7 @@ class PhiMixin(object):
         Parameters
         ----------
         observation : Convertable to numpy array. 1d, 2d, or None.
-        reward :
+        last_reward :
 
         Returns : the current agent state
         -------
@@ -47,7 +47,7 @@ class PhiMixin(object):
             return None
         else:
             try:  # try escalate call to parent classes
-                state = super(PhiMixin, self).transition_(observation=state, reward=reward)
+                state = super(PhiMixin, self).transition_(observation=state, reward=last_reward)
             except AttributeError:
                 pass
             finally:
@@ -91,10 +91,10 @@ class AnealMixin(object):
             self.EPSILONS.append(recipe[step])
         super(AnealMixin, self).__init__(**kwargs)
 
-    def observe_and_act(self, observation, reward=None):
+    def observe_and_act(self, observation, last_reward=None):
         if self.step_ptr < len(self.STEPS):
             if self.step_counter > self.STEPS[self.step_ptr]:
                 self.EPSILON = self.EPSILONS[self.step_ptr]
                 self.step_ptr += 1
             self.step_counter += 1
-        return super(AnealMixin, self).observe_and_act(observation, reward)
+        return super(AnealMixin, self).observe_and_act(observation, last_reward)
