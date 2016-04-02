@@ -32,7 +32,7 @@ ts = TrafficServer(verbose=2)
 actions = [(True, None), (False, 'serve_all')]
 # agent = QAgent(actions=actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
 agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 1000), (0, 1000)),),),
-                 learning_rate=0.01, reward_scaling=1000, batch_size=100, freeze_period=5, memory_size=10,
+                 learning_rate=0.01, reward_scaling=1000, batch_size=10, freeze_period=5, memory_size=20, num_buffer=2,
                  actions=actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1,
                  verbose=2
                  )
@@ -42,7 +42,7 @@ emu = Emulation(te=te, ts=ts, c=c)
 print "Emulation starting"
 print
 # run...
-while emu.epoch is not None:
+while emu.te.epoch is not None:
     # log time
     print "Epoch {}, ".format(emu.epoch),
     left = emu.te.head_datetime + emu.te.epoch*emu.te.time_step

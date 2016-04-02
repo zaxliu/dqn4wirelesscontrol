@@ -88,7 +88,7 @@ class QAgent(object):
             state = observation
 
         # Improve agent given current state and reward
-        update_result = self.reinforce_(state=state, reward=reward)
+        update_result = self.reinforce_(state=state, last_reward=reward)
 
         # Choose action based on current state
         action = self.act_(state=state)
@@ -104,16 +104,16 @@ class QAgent(object):
         if foget_table:
             self.q_table = {}
 
-    def reinforce_(self, state, reward):
-        """ Improve agent based on current experience (last_state, last_action, reward, state)
+    def reinforce_(self, state, last_reward):
+        """ Improve agent based on current experience (last_state, last_action, last_reward, state)
 
         """
         last_state = self.last_state
         last_action = self.last_action
-        if last_state is None or state is None or reward is None:
+        if last_state is None or state is None or last_reward is None:
             update_result = None
         else:
-            update_result = self.update_table_(last_state, last_action, reward, state)
+            update_result = self.update_table_(last_state, last_action, last_reward, state)
         return update_result
 
     def update_table_(self, last_state, last_action, reward, current_state):
@@ -134,7 +134,7 @@ class QAgent(object):
             idx_action = randint(0, len(self.ACTIONS))  # if state cannot be internalized as state, random act
             if self.verbose > 0:
                 print "  QAgent: ",
-                print "randomly choose action (None state)."
+                print "randomly choose action {} (None state).".format(self.ACTIONS[idx_action])
         elif self.EXPLORE == 'epsilon':
             if rand() < self.EPSILON:  # random exploration with "epsilon" prob.
                 idx_action = randint(0, len(self.ACTIONS))

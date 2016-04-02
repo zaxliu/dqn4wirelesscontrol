@@ -1,6 +1,6 @@
-import os
 from collections import deque
 import numpy as np
+from scipy.stats import itemfreq
 import theano
 import theano.tensor as T
 import lasagne
@@ -11,7 +11,7 @@ class QAgentNN(QAgent):
     def __init__(self, dim_state, range_state,  # basics
                  net=None, batch_size=100, learning_rate=0.01, momentum=0.9,  # nn related
                  reward_scaling=1, freeze_period=0,
-                 memory_size=500,  # replay memory related
+                 memory_size=500, num_buffer=1,  # replay memory related
                  **kwargs):
         super(QAgentNN, self).__init__(**kwargs)
 
@@ -35,7 +35,7 @@ class QAgentNN(QAgent):
                                                                      self.BATCH_SIZE, self.GAMMA,
                                                                      self.LEARNING_RATE, self.MOMENTUM,
                                                                      self.REWARD_SCALING)
-        self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(self.ACTIONS))
+        self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(self.ACTIONS), num_buffer)
         self.freeze_counter = 0
 
     def reset(self, foget_table=False, new_table=None, foget_memory=False):
@@ -60,14 +60,14 @@ class QAgentNN(QAgent):
             self.replay_memory.update(last_state, idx_action, reward, state)
         return state
 
-    def reinforce_(self, state, reward):
+    def reinforce_(self, state, last_reward):
         # update network if not frozen or dry run: sample memory and train network
         if state is None:
             if self.verbose > 0:
                 print "  QAgentNN: ",
                 print "state is None, agent not updated."
             return None
-        elif reward is None:
+        elif last_reward is None:
             if self.verbose > 0:
                 print "  QAgentNN: ",
                 print "reward is None, agent not updated."
@@ -75,12 +75,18 @@ class QAgentNN(QAgent):
         else:
             loss = None
             if (self.freeze_counter % self.FREEZE_PERIOD) == 0 and self.replay_memory.isfilled():
-                last_state, last_action, reward, state = self.replay_memory.sample_batch()
-                loss = self.update_table_(last_state, last_action, reward, state)
+                last_states, last_actions, last_rewards, states = self.replay_memory.sample_batch()
+                loss = self.update_table_(last_states, last_actions, last_rewards, states)
                 self.freeze_counter = 0
+                if self.verbose > 1:
+                    freq = itemfreq(last_actions)
+                    print "    QAgentNN: ",
+                    print "batch action distribution: {}".format(
+                        {freq[i, 0]: 1.0*freq[i, 1]/self.BATCH_SIZE for i in range(freq.shape[0])}
+                    )
                 if self.verbose > 0:
                     print "  QAgentNN: ",
-                    print "update loss is {} at {}".format(loss, self.freeze_counter)
+                    print "update loss is {} at counter {}".format(loss, self.freeze_counter)
             elif not self.replay_memory.isfilled():
                 if self.verbose > 0:
                     print "  QAgentNN: ",
@@ -107,7 +113,7 @@ class QAgentNN(QAgent):
         return self.fun_q_lookup(self.rescale_state(state_var)).ravel().tolist()
 
     def is_memory_filled(self):
-        return  self.replay_memory.isfilled()
+        return self.replay_memory.isfilled()
 
     def rescale_state(self, states):
         return (states-self.STATE_MEAN)/self.STATE_MAG
@@ -163,44 +169,49 @@ class QAgentNN(QAgent):
         return fun_train_batch, fun_q_lookup
 
     class ReplayMemory(object):
-        """Replay memory class
+        """Replay memory
+        Buffers the past "memory_size) (s, a, r, s') tuples in a circular buffer, and provides method to sample a random
+        batch from it.
         """
-        def __init__(self, memory_size, batch_size, dim_state, num_actions):
+        def __init__(self, memory_size, batch_size, dim_state, num_actions, num_buffers=1):
             self.MEMORY_SIZE = memory_size
             self.BATCH_SIZE = batch_size
             self.DIM_STATE = dim_state
             self.NUM_ACTIONS = num_actions
+            self.NUM_BUFFERS = num_buffers
 
-            self.buffer_old_state = np.zeros(tuple([memory_size]+list(self.DIM_STATE)), dtype=np.float32)
-            self.buffer_action = np.zeros((memory_size, ), dtype=np.int32)
-            self.buffer_reward = np.zeros((memory_size, ), dtype=np.float32)
-            self.buffer_new_state = np.zeros(tuple([memory_size]+list(self.DIM_STATE)), dtype=np.float32)
+            self.buffer_old_state = np.zeros(tuple([self.NUM_BUFFERS, memory_size]+list(self.DIM_STATE)), dtype=np.float32)
+            self.buffer_action = np.zeros((self.NUM_BUFFERS, memory_size, ), dtype=np.int32)
+            self.buffer_reward = np.zeros((self.NUM_BUFFERS, memory_size, ), dtype=np.float32)
+            self.buffer_new_state = np.zeros(tuple([self.NUM_BUFFERS, memory_size]+list(self.DIM_STATE)), dtype=np.float32)
 
-            self.top = 0
+            self.top = [0]*self.NUM_BUFFERS
             self.filled = False
 
         def update(self, old_state, idx_action, reward, new_state):
-            top = self.top
-            self.buffer_old_state[top, :] = old_state
-            self.buffer_action[top] = idx_action
-            self.buffer_reward[top] = reward
-            self.buffer_new_state[top, :] = new_state
+            buffer_idx = idx_action % self.NUM_BUFFERS
+            top = self.top[buffer_idx]
+            self.buffer_old_state[buffer_idx, top, :] = old_state
+            self.buffer_action[buffer_idx, top] = idx_action
+            self.buffer_reward[buffer_idx, top] = reward
+            self.buffer_new_state[buffer_idx, top, :] = new_state
             if not self.filled:
-                self.filled |= (top == (self.MEMORY_SIZE-1))
-            self.top = (top+1) % self.MEMORY_SIZE
+                self.filled |= all([self.top[i] == (self.MEMORY_SIZE-1) for i in range(self.NUM_BUFFERS)])
+            self.top[buffer_idx] = (top+1) % self.MEMORY_SIZE
 
         def sample_batch(self):
-            batch_idx = np.random.randint(0, self.MEMORY_SIZE, (self.BATCH_SIZE,))
-            return (self.buffer_old_state[batch_idx, :],
-                    self.buffer_action[batch_idx],
-                    self.buffer_reward[batch_idx],
-                    self.buffer_new_state[batch_idx, :])
+            sample_idx = np.random.randint(0, self.MEMORY_SIZE, (self.BATCH_SIZE,))
+            buffer_idx = np.random.randint(0, self.NUM_BUFFERS, (self.BATCH_SIZE,))
+            return (self.buffer_old_state[buffer_idx, sample_idx, :],
+                    self.buffer_action[buffer_idx, sample_idx],
+                    self.buffer_reward[buffer_idx, sample_idx],
+                    self.buffer_new_state[buffer_idx, sample_idx, :])
 
         def isfilled(self):
             return self.filled
 
         def reset(self):
-            self.top = 0
+            self.top = [0]*self.NUM_BUFFERS
             self.filled = False
 
 
