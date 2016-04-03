@@ -51,7 +51,7 @@ class TrafficServer:
         traffic_df_cp['arriveTime_epoch'] = self.epoch
         self.q = self.q.append(traffic_df_cp, ignore_index=True)
 
-        return last_traffic_ob, last_q_ob, new_q_ob
+        return last_q_ob, last_traffic_ob, new_q_ob
 
     def get_service_and_cost(self, control):
         """Generate service based on the control commands
