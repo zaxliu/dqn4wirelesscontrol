@@ -148,7 +148,9 @@ class QAgent(object):
                 idx_action = idx_best_actions[randint(0, len(idx_best_actions))]
                 if self.verbose > 0:
                     print "  QAgent: ",
-                    print "choose best q among {} (Epsilon).".format(dict(zip(self.ACTIONS, q_vals)))
+                    print "choose best q among {} (Epsilon).".format(
+                        {self.ACTIONS[i]: q_vals[i] for i in range(len(self.ACTIONS))}
+                    )
         elif self.EXPLORE == 'soft_probability':
                 q_vals = self.lookup_table_(state)  # state = internal_state
                 exp_q_vals = exp(q_vals)

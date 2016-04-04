@@ -47,7 +47,7 @@ class PhiMixin(object):
             return None
         else:
             try:  # try escalate call to parent classes
-                state = super(PhiMixin, self).transition_(observation=state, reward=last_reward)
+                state = super(PhiMixin, self).transition_(observation=state, last_reward=last_reward)
             except AttributeError:
                 pass
             finally:

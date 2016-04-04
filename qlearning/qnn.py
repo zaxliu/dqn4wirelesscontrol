@@ -72,9 +72,13 @@ class QAgentNN(QAgent):
                 print "  QAgentNN: ",
                 print "last_reward is None, agent not updated."
             return None
+        elif not self.replay_memory.isfilled():
+                if self.verbose > 0:
+                    print "  QAgentNN: ",
+                    print "unfull memory."
         else:
             loss = None
-            if (self.freeze_counter % self.FREEZE_PERIOD) == 0 and self.replay_memory.isfilled():
+            if (self.freeze_counter % self.FREEZE_PERIOD) == 0:
                 last_states, last_actions, last_rewards, states = self.replay_memory.sample_batch()
                 loss = self.update_table_(last_states, last_actions, last_rewards, states)
                 self.freeze_counter = 0
@@ -87,16 +91,11 @@ class QAgentNN(QAgent):
                 if self.verbose > 0:
                     print "  QAgentNN: ",
                     print "update loss is {} at counter {}".format(loss, self.freeze_counter)
-            elif not self.replay_memory.isfilled():
-                if self.verbose > 0:
-                    print "  QAgentNN: ",
-                    print "unfull memory."
             else:
                 if self.verbose > 0:
                     print "  QAgentNN: ",
                     print "frozen net at counter {}.".format(self.freeze_counter)
             self.freeze_counter += 1
-
             return loss
 
     def act_(self, state):
