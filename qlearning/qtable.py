@@ -7,20 +7,40 @@ from qlearning.simple_envs import SimpleMaze
 
 
 class QAgent(object):
-    """Base class for Q learning with a default table-based implementation.
+    """Table-based Q Learning Agent
+    A table-based Q learning agent. Updates table with canonical Bellman iteration method. Random exploration using
+    epsilon- or soft-probability strategy.
 
+    Train the agent with QAgent.observer_and_act(). Use the current observation and the reward from last action. Reset
+    agent state with QAgent.reset(), set forget_table = True to drop the learned table.
     """
     def __init__(self, actions=None, alpha=1.0, gamma=0.5, epsilon=0.02, explore_strategy='epsilon', verbose=0, **kwargs):
+        """
+
+        Parameters
+        ----------
+        actions : Legitimate actions. (List or Tuple)
+        alpha : Learning rate. The weight for update q value. (float, between (0, 1])
+        gamma : Reward discount factor. (float, between [0, 1))
+        epsilon : exploration rate for epsilon-greedy exploration. (float, [0, 1))
+        explore_strategy : 'epsilon' or 'soft_probability'
+        verbose : verbosity level.
+        kwargs :
+
+        Returns
+        -------
+
+        """
         super(QAgent, self).__init__(**kwargs)
 
         # static attributes
         if not actions:
             raise ValueError("Passed in None action list.")
-        self.ACTIONS = actions
-        self.ALPHA = alpha  # learning rate
-        self.GAMMA = gamma  # discount factor
-        self.EPSILON = epsilon  # exploration probability
-        self.DEFAULT_QVAL = 0  # default initial value for Q table entries
+        self.ACTIONS = actions    # legitimate actions
+        self.ALPHA = alpha        # learning rate
+        self.GAMMA = gamma        # discount factor
+        self.EPSILON = epsilon    # exploration probability for 'epsilon-greedy' strategy
+        self.DEFAULT_QVAL = 0     # default initial value for Q table entries
         self.EXPLORE = explore_strategy
         self.verbose = verbose
 
