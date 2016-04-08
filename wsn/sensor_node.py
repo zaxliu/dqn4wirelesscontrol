@@ -13,7 +13,7 @@ class BaseNode(object):
         self.epoch = 0  # time counter
 
     def step(self, last_ack):
-        observation = None  # past actions + traffic info + etc...
+        observation = None  # past ACTIONS + traffic info + etc...
         reward = self.evaluate_ack_(last_ack)
         action = self.agent.observe_and_act(observation=observation, reward=reward)
         return self.translate_action_(action)
