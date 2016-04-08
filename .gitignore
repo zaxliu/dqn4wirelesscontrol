@@ -13,3 +13,7 @@
 
 # log file
 *.log
+*.csv
+
+# MISC
+.fuse*
