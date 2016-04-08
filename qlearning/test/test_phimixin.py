@@ -1,5 +1,6 @@
 from collections import deque
-from qlearning.qtable import SimpleMaze, QAgent
+from qlearning.qtable import QAgent
+from qlearning.simple_envs import SimpleMaze
 from qlearning.qnn import QAgentNN
 from qlearning.mixin import PhiMixin
 
@@ -22,14 +23,14 @@ phi_length = 3
 if agent_type == 'QAgent':
     agent = QAgentPhi(
         phi_length=phi_length,
-        actions=maze.actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
+        actions=maze.ACTIONS, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
 elif agent_type == 'QAgentNN':
-    slice_range = [(0, 3), (0, 4)] + zip([0]*len(maze.actions), [1]*len(maze.actions))
+    slice_range = [(0, 3), (0, 4)] + zip([0] * len(maze.ACTIONS), [1] * len(maze.ACTIONS))
     agent = QAgentNNPhi(
         phi_length=phi_length,
-        dim_state=(1, phi_length, 2+len(maze.actions)),
+        dim_state=(1, phi_length, 2+len(maze.ACTIONS)),
         range_state=[[slice_range]*phi_length],
-        actions=maze.actions,
+        actions=maze.ACTIONS,
         learning_rate=0.01, reward_scaling=100, batch_size=100,
         freeze_period=100, memory_size=1000,
         alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02)

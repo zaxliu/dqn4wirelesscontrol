@@ -1,56 +1,9 @@
 from collections import deque, Hashable
-from numpy import max, abs, exp
+
+from numpy import max, exp
 from numpy.random import rand, randint, multinomial
-import pandas as pd
-import matplotlib.pyplot as plt
 
-
-class SimpleMaze:
-    def __init__(self):
-        self.actions = ['left', 'right', 'up', 'down']
-        self.DIMS = (4, 5)
-        self.GOAL_STATE = (2, 2)
-        self.GOAL_REWARD = 100
-        self.WALL_REWARD = 0
-        self.NULL_REWARD = 0
-        self.state = None
-        self.reset()
-
-    def observe(self):
-        return self.state
-
-    def interact(self, action):
-        next_state, reward = self.transition_(self.state, action)
-        self.state = next_state
-        return next_state, reward
-
-    def transition_(self, current_state, action):
-        if action == 'up':
-            next_state, reward = (current_state, self.WALL_REWARD) if current_state[0] == 0 \
-                else ((current_state[0]-1, current_state[1]), self.NULL_REWARD)
-        elif action == 'down':
-            next_state, reward = (current_state, self.WALL_REWARD) if current_state[0] == (self.DIMS[0] - 1) \
-                else ((current_state[0]+1, current_state[1]), self.NULL_REWARD)
-        elif action == 'left':
-            next_state, reward = (current_state, self.WALL_REWARD) if current_state[1] == 0 \
-                else ((current_state[0], current_state[1]-1), self.NULL_REWARD)
-        elif action == 'right':
-            next_state, reward = (current_state, self.WALL_REWARD) if current_state[1] == (self.DIMS[1] - 1) \
-                else ((current_state[0], current_state[1]+1), self.NULL_REWARD)
-        else:
-            print 'I don\'t understand this action ({}), I\'ll stay.'.format(action)
-            next_state, reward = current_state, self.NULL_REWARD
-        reward = self.GOAL_REWARD if next_state == self.GOAL_STATE else reward
-        return next_state, reward
-
-    def reset(self):
-        next_state = self.GOAL_STATE
-        while next_state == self.GOAL_STATE:
-            next_state = (randint(0, self.DIMS[0]), randint(0, self.DIMS[1]))
-        self.state = next_state
-
-    def isfinished(self):
-        return self.state == self.GOAL_STATE
+from qlearning.simple_envs import SimpleMaze
 
 
 class QAgent(object):
@@ -163,7 +116,7 @@ class QAgent(object):
         return self.ACTIONS[idx_action]
 
     def lookup_table_(self, state):
-        """ return the q values of all actions at a given state
+        """ return the q values of all ACTIONS at a given state
         """
         if not isinstance(state, Hashable):
             state = tuple(state.ravel())
@@ -172,7 +125,7 @@ class QAgent(object):
 
 if __name__ == "__main__":
     maze = SimpleMaze()
-    agent = QAgent(actions=maze.actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
+    agent = QAgent(actions=maze.ACTIONS, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
     # logging
     path = deque()  # path in this episode
     episode_reward_rates = []

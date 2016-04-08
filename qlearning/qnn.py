@@ -4,7 +4,8 @@ from scipy.stats import itemfreq
 import theano
 import theano.tensor as T
 import lasagne
-from qtable import QAgent, SimpleMaze
+from qtable import QAgent
+from qlearning.simple_envs import SimpleMaze
 
 
 class QAgentNN(QAgent):
@@ -216,7 +217,7 @@ class QAgentNN(QAgent):
 
 if __name__ == '__main__':
     maze = SimpleMaze()
-    agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 3),(0, 4)),),), actions=maze.actions,
+    agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 3),(0, 4)),),), actions=maze.ACTIONS,
                      learning_rate=0.01, reward_scaling=100, batch_size=100,
                      freeze_period=20, memory_size=1000,
                      alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02)

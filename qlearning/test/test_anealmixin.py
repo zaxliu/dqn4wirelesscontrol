@@ -1,5 +1,6 @@
 from collections import deque
-from qlearning.qtable import SimpleMaze, QAgent
+from qlearning.qtable import QAgent
+from qlearning.simple_envs import SimpleMaze
 from qlearning.qnn import QAgentNN
 from qlearning.mixin import AnealMixin
 
@@ -23,13 +24,13 @@ if __name__ == '__main__':
     if agent_type == 'QAgent':
         agent = QAgentAneal(
             recipe=recipe,
-            actions=maze.actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
+            actions=maze.ACTIONS, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
     elif agent_type == 'QAgentNN':
         agent = QAgentNNAneal(
             recipe=recipe,
             dim_state=(1, 1, 2),
             range_state=((((0, 3),(0, 4)),),),
-            actions=maze.actions,
+            actions=maze.ACTIONS,
             learning_rate=0.01, reward_scaling=100, batch_size=100,
             freeze_period=100, memory_size=1000,
             alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02)
