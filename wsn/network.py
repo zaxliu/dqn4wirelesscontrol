@@ -1,3 +1,4 @@
+from qlearning.qtable import QAgent
 import channel.BaseChannel as Channel
 import sensor_node.BaseNode as Node
 
@@ -20,4 +21,12 @@ class SensorNetwork:
 
 
 if __name__=='__main__':
-    pass
+    ACTIONS = [[channel_idx, trx_code] for channel_idx in range(3) for trx_code in [-1, 0, 1]]
+    agents = [QAgent(actions=ACTIONS, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
+    for i in range(3)]
+    nodes = [Node(id=0, agent=agents[0], routing_childs=[None], parent=2, epoch=2, histLen=2),
+            Node(id=1, agent=agents[1], routing_childs=[None], parent=2, epoch=3, histLen=2),
+            Node(id=2, agent=agents[2], routing_childs=[0, 1], parent=None, epoch=10, histLen=2)]
+    network = SensorNetwork(nodes=nodes, channel=Channel())
+
+

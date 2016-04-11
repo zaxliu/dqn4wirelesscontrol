@@ -37,7 +37,9 @@ class BaseChannel(object):
         for j in range(nodes_num):
             node_action = transmission_and_reception[j]
             for i in range(channels_num):
-                if node_action[i][0] == -1:
+                if node_action[i] == None:
+                    continue
+                elif node_action[i][0] == -1:
                     channels[i]['receivers'].append(j)
                     records[i] = (-1, [])
                 elif node_action[i][0] == 1:
