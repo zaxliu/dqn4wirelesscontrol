@@ -51,7 +51,8 @@ class BaseChannel(object):
             receivers = channels[i]['receivers']
             for sender in senders:
                 if sender[1] in receivers:
-                    records[sender[1]][1].append(sender[0])
+                    if records[sender[1]] is not None:
+                        records[sender[1]][1].append(sender[0])
 
         for i in range(nodes_num):
             record = records[i]

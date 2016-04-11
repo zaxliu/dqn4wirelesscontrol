@@ -1,17 +1,31 @@
 from collections import deque
+
 import numpy as np
 from scipy.stats import itemfreq
+
 import theano
+from theano import shared
 import theano.tensor as T
 import lasagne
+
 from qtable import QAgent
 from qlearning.simple_envs import SimpleMaze
 
 
 class QAgentNN(QAgent):
     """ Neuron-network-based Q Learning Agent
+    This agent replaces the Q table in a canonical q agent with a neuron network. Its inputs are the observed state and
+    its outputs are the q values for each action. The training of the network is performed periodically with randomly
+    selected batch of past experiences. This technique is also known as Experience Replay. The loss function is defined
+    following the Bellman iteration equation.
 
+    Different from the techniques presented in the original DeepMind paper. We apply re-scaling on the reward to make it
+    fit better into the value range of output layer (e.g. (-1, +1)). This can be helpful for scenarios in which the value
+    of reward has a large dynamic range. Another modification is that we employ separate buffers in the replay memory
+    for different actions. This can speed-up convergence in non-stationary and highly-action-skewed cases.
 
+    QAgentNN reuses much of the interface methods of QAgent. The reset(), reinforce_(), transition_(), update_table_(),
+    lookup_table_(), and act_() methods are redefined to overwrite/encapsulate the original functionality.
     """
     def __init__(self, dim_state, range_state,  # basics
                  net=None, batch_size=100, learning_rate=0.01, momentum=0.9,  # nn related
@@ -22,17 +36,17 @@ class QAgentNN(QAgent):
 
         Parameters
         ----------
-        dim_state : dimensions of observation. Must by in the format of (d1, d2, d3).
+        dim_state   : dimensions of observation. Must by in the format of (d1, d2, d3).
         range_state : lower and upper bound of observations. Must be in the format of (d1, d2, d3, 2) following the notation of dim state.
-        net : Lasagne output layer as the network used.
-        batch_size : batch size for mini-batch stochastic gradient descent (SGD) training.
-        learning_rate : step size of a single gradient descent step.
-        momentum : faction of old weight values kept during gradient descent.
+        net         : Lasagne output layer as the network used.
+        batch_size  : batch size for mini-batch stochastic gradient descent (SGD) training.
+        learning_rate  : step size of a single gradient descent step.
+        momentum    : faction of old weight values kept during gradient descent.
         reward_scaling : scaling factor for dividing the reward.
-        freeze_period : the periodicity for training the q network.
+        freeze_period  : the periodicity for training the q network.
         memory_size : size of replay memory (each buffer).
-        num_buffer : number of buffers used in replay memory
-        kwargs
+        num_buffer  : number of buffers used in replay memory
+        kwargs      :
 
         Returns
         -------
@@ -57,10 +71,9 @@ class QAgentNN(QAgent):
         if not net:
             net = QAgentNN.build_qnn_(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
         self.q_table = net
-        self.fun_train_batch, self.fun_q_lookup = QAgentNN.init_fun_(self.q_table, self.DIM_STATE,
-                                                                     self.BATCH_SIZE, self.GAMMA,
-                                                                     self.LEARNING_RATE, self.MOMENTUM,
-                                                                     self.REWARD_SCALING)
+        self.fun_train_batch, self.fun_q_lookup, self.fun_rs_lookup\
+            = QAgentNN.init_fun_(self.q_table, self.DIM_STATE, self.BATCH_SIZE, self.GAMMA,
+                                 self.LEARNING_RATE, self.MOMENTUM, self.REWARD_SCALING)
         self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(self.ACTIONS), num_buffer)
         self.freeze_counter = 0
 
@@ -77,9 +90,13 @@ class QAgentNN(QAgent):
             self.ReplayMemory.reset()
 
     def transition_(self, observation, last_reward):
+        """Update replay memory with new experience
+        Consider the "memory state" as part of the agent state
+        """
         state = observation
         last_state = self.last_state
         last_action = self.last_action
+
         # update current experience into replay memory
         if last_state is not None and state is not None:
             idx_action = self.ACTIONS.index(last_action)
@@ -87,6 +104,21 @@ class QAgentNN(QAgent):
         return state
 
     def reinforce_(self, state, last_reward):
+        """Train the network periodically with past experiences
+        Periodically train the network with random samples from the replay memory. Freeze the network parameters when in
+        non-training epochs.
+
+        Will not update the network if the state or reward passes in is None or the replay memory is yet to be filled up.
+
+        Parameters
+        ----------
+        state : current agent state
+        last_reward : reward from last action
+
+        Returns : training loss
+        -------
+
+        """
         # update network if not frozen or dry run: sample memory and train network
         if state is None:
             if self.verbose > 0:
@@ -125,7 +157,7 @@ class QAgentNN(QAgent):
             return loss
 
     def act_(self, state):
-        # if memory is not filled, the estimated q vals are most probably wrong, thus call to choose random action.
+        # Escalate to QAgent.act_(). Pass None state if memory is not full to invoke random action.
         return super(QAgentNN, self).act_(state if self.is_memory_filled() else None)
 
     def update_table_(self, last_state, last_action, reward, current_state):
@@ -164,34 +196,42 @@ class QAgentNN(QAgent):
     @staticmethod
     def init_fun_(net, dim_state, batch_size, gamma, learning_rate, momentum, reward_scaling=1):
         """Define and compile function to train and evaluate network
-        :param net:
-        :param dim_state:
+        :param net: Lasagne output layer
+        :param dim_state: dimensions of a single state tensor
         :param batch_size:
-        :param gamma:
+        :param gamma: future reward discount factor
         :param learning_rate:
         :param momentum:
         :return:
         """
         if len(dim_state) != 3:
-            raise ValueError("Currently only support 3 dimensional states")
+            raise ValueError("We only support 3 dimensional states.")
+
         # inputs
         old_states, new_states = T.tensor4s('old_states', 'new_states')   # (BATCH_SIZE, MEMORY_LENGTH, DIM_STATE[0], DIM_STATE[1])
         actions = T.ivector('actions')           # (BATCH_SIZE, 1)
         rewards = T.vector('rewards')            # (BATCH_SIZE, 1)
-        # intemediate
+        rs = shared(value=reward_scaling*1.0, name='reward_scaling')
+
+        # intermediates
         network = net
         predict_q = lasagne.layers.get_output(layer_or_layers=network, inputs=old_states)
         predict_next_q = lasagne.layers.get_output(layer_or_layers=network, inputs=new_states)
-        target_q = rewards/reward_scaling + gamma*T.max(predict_next_q, axis=1)
+        target_q = rewards/rs+ gamma*T.max(predict_next_q, axis=1)
+
         # outputs
         loss = T.mean((predict_q[T.arange(batch_size), actions] - target_q)**2)
-        # weight update formulas (sgd)
+
+        # weight update formulas (mini-batch SGD with momentum)
         params = lasagne.layers.get_all_params(network, trainable=True)
+        params.append(rs)
         updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=learning_rate, momentum=momentum)
+
         # functions
         fun_train_batch = theano.function([old_states, actions, rewards, new_states], loss, updates=updates, allow_input_downcast=True)  # training function for one batch
         fun_q_lookup = theano.function([old_states], predict_q, allow_input_downcast=True)
-        return fun_train_batch, fun_q_lookup
+        fun_rs_lookup = rs.get_value()
+        return fun_train_batch, fun_q_lookup, fun_rs_lookup
 
     class ReplayMemory(object):
         """Replay memory
@@ -243,7 +283,7 @@ class QAgentNN(QAgent):
 if __name__ == '__main__':
     maze = SimpleMaze()
     agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 3),(0, 4)),),), actions=maze.ACTIONS,
-                     learning_rate=0.01, reward_scaling=100, batch_size=100,
+                     learning_rate=0.01, reward_scaling=1, batch_size=100,
                      freeze_period=20, memory_size=1000,
                      alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02)
     print "Maze and agent initialized!"
@@ -265,17 +305,20 @@ if __name__ == '__main__':
         episode_steps = 0
         episode_loss = 0
 
+        print '(',
         # interact and reinforce repeatedly
         while not maze.isfinished():
             new_observation, reward = maze.interact(action)
             action, loss = agent.observe_and_act(observation=new_observation, last_reward=reward)
             # print action,
             # print new_observation,
+            print agent.fun_rs_lookup,
             path.append(new_observation)
             episode_reward += reward
             episode_steps += 1
             episode_loss += loss if loss else 0
-        print len(path),
+        print '):',
+        print len(path)
         # print "{:.3f}".format(episode_loss),
         # print ""
         cum_steps += episode_steps

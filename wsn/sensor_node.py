@@ -1,4 +1,5 @@
 from qlearning.qtable import QAgent as Agent
+import numpy as np
 
 
 class BaseNode(object):
@@ -25,7 +26,7 @@ class BaseNode(object):
 
           
         reward = self.evaluate_ack_(last_ack)
-        action = self.agent.observe_and_act(observation=self.observation, reward=reward)
+        action, _ = self.agent.observe_and_act(observation=np.array(self.observation), last_reward=reward)
         self.observation.append(action)
 
         if self.observation[-1] is not None:
@@ -41,13 +42,13 @@ class BaseNode(object):
         """
         #enqueue or dequeue according to last_ack
         if last_ack is not None:
-            temp = observation(len(observation))
+            temp = self.observation(len(self.observation))
             if temp[1] == 1:
-                self.queue = self.queue-1
+                self.queue -= 1
             if temp[1] == -1:
                 self.queue = self.queue+1
 
-        return self.translate_action_(action)
+        return self.translate_action_(action), reward
 
 #======================================================
 
@@ -88,7 +89,7 @@ class BaseNode(object):
         #action: [channel, act]
         if action[1] == 1:
             trx.insert(action[0],(action[1],self.id,self.parent))
-        else if:
+        else:
             trx.insert(action[0],(-1,0,0))
 
         return trx
