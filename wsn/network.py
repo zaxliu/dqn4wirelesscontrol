@@ -24,10 +24,11 @@ class SensorNetwork:
 
 
 if __name__=='__main__':
-    ACTIONS = [(channel_idx, trx_code) for channel_idx in range(1) for trx_code in [-1, 0, 1]]
+    channel_length=1
+    ACTIONS = [(channel_idx, trx_code) for channel_idx in range(channel_length) for trx_code in [-1, 0, 1]]
     agents = [QAgent(actions=ACTIONS, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1) for i in range(3)]
-    nodes = [Node(id=0, agent=agents[0], routing_childs=[None], parent=1, epoch=2, histLen=2),
-            Node(id=1, agent=agents[1], routing_childs=[0], parent=None, epoch=3, histLen=2)]
+    nodes = [Node(id=0, agent=agents[0], routing_childs=[None], parent=1, epoch=2, histLen=2, chanLen=channel_length),
+            Node(id=1, agent=agents[1], routing_childs=[0], parent=None, epoch=3, histLen=2, chanLen=channel_length)]
             # Node(id=2, agent=agents[2], routing_childs=[0, 1], parent=None, epoch=10, histLen=2)]
     network = SensorNetwork(nodes=nodes, channel=Channel())
 

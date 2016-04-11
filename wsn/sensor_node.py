@@ -44,11 +44,11 @@ class BaseNode(object):
         if last_ack is not None:
             temp = self.observation(len(self.observation))
             if temp[1] == 1:
-                self.queue -= 1
+                self.queue -= 1 if self.queue > 0 else 0
             if temp[1] == -1:
                 self.queue = self.queue+1
 
-        return self.translate_action_(action), reward
+        return self.translate_action_(action if self.queue > 0 else (0, 0)), reward
 
 #======================================================
 
@@ -88,10 +88,11 @@ class BaseNode(object):
         trx = [None]*self.chanLen
         #action: [channel, act]
         if action[1] == 1:
-            trx.insert(action[0],(action[1],self.id,self.parent))
+            trx[action[0]] = (action[1], self.id, self.parent)
+        elif action[1] == -1:
+            trx[action[0]] = (-1, 0, 0)
         else:
-            trx.insert(action[0],(-1,0,0))
-
+            pass
         return trx
 
 
