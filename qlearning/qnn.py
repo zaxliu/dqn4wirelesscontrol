@@ -9,19 +9,44 @@ from qlearning.simple_envs import SimpleMaze
 
 
 class QAgentNN(QAgent):
+    """ Neuron-network-based Q Learning Agent
+
+
+    """
     def __init__(self, dim_state, range_state,  # basics
                  net=None, batch_size=100, learning_rate=0.01, momentum=0.9,  # nn related
                  reward_scaling=1, freeze_period=0,
                  memory_size=500, num_buffer=1,  # replay memory related
                  **kwargs):
+        """Initialize NN-based Q Agent
+
+        Parameters
+        ----------
+        dim_state : dimensions of observation. Must by in the format of (d1, d2, d3).
+        range_state : lower and upper bound of observations. Must be in the format of (d1, d2, d3, 2) following the notation of dim state.
+        net : Lasagne output layer as the network used.
+        batch_size : batch size for mini-batch stochastic gradient descent (SGD) training.
+        learning_rate : step size of a single gradient descent step.
+        momentum : faction of old weight values kept during gradient descent.
+        reward_scaling : scaling factor for dividing the reward.
+        freeze_period : the periodicity for training the q network.
+        memory_size : size of replay memory (each buffer).
+        num_buffer : number of buffers used in replay memory
+        kwargs
+
+        Returns
+        -------
+
+        """
         super(QAgentNN, self).__init__(**kwargs)
 
         self.DIM_STATE = dim_state  # mush be in form (d1, d2, d3), i.e. three dimensions
-        self.STATE_MEAN = np.zeros(self.DIM_STATE)
-        self.STATE_MAG = np.ones(self.DIM_STATE)
-        if range_state:
-            self.STATE_MEAN = (np.array(range_state)[:, :, :, 1]+np.array(range_state)[:, :, :, 0])/2.0  # upper bound on DIMS
-            self.STATE_MAG = (np.array(range_state)[:, :, :, 1]-np.array(range_state)[:, :, :, 0])/2.0  # lower bound on DIMS
+        if range_state is not None:  # lower and upper bound on observation
+            self.STATE_MEAN = (np.array(range_state)[:, :, :, 1]+np.array(range_state)[:, :, :, 0])/2.0
+            self.STATE_MAG = (np.array(range_state)[:, :, :, 1]-np.array(range_state)[:, :, :, 0])/2.0
+        else:
+            self.STATE_MEAN = np.zeros(self.DIM_STATE)
+            self.STATE_MAG = np.ones(self.DIM_STATE)
         self.FREEZE_PERIOD = freeze_period
         self.MEMORY_SIZE = memory_size
         self.BATCH_SIZE = batch_size

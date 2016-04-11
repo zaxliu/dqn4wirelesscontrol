@@ -50,9 +50,12 @@ class QAgent(object):
         self.q_table = {}
 
     def observe_and_act(self, observation, last_reward=None):
-        """A single learning step
-        Try to call a transition_() method to internalize current observation and last_reward as agent state. If no such
-        method is provided, the raw observation is used as agent state.
+        """A single reinforcement learning step
+        Pass in the current observation and reward from last action. First try to internalize the observation as an
+        agent state, then reinforce the agent with current experience, finally perform action based on current experience.
+
+        The internalization of observation is done by the transition_() method. This method is expected to be materialized
+        in the child classes. If not, the state will simply be the current observation.
         """
         # Internalize observation and last_reward
         try:  # update agent state if a transition_() method is provided
@@ -79,7 +82,6 @@ class QAgent(object):
 
     def reinforce_(self, state, last_reward):
         """ Improve agent based on current experience (last_state, last_action, last_reward, state)
-
         """
         last_state = self.last_state
         last_action = self.last_action
@@ -90,6 +92,8 @@ class QAgent(object):
         return update_result
 
     def update_table_(self, last_state, last_action, reward, current_state):
+        """Update Q table using Bellman iteration
+        """
         best_qval = max(self.lookup_table_(current_state))
         if not isinstance(last_state, Hashable):
             last_state = tuple(last_state.ravel())  # passed in numpy array
@@ -100,8 +104,7 @@ class QAgent(object):
         return None
 
     def act_(self, state):
-        """Agent choose an action based on current state.
-
+        """Choose an action based on current state.
         """
         if state is None:
             idx_action = randint(0, len(self.ACTIONS))  # if state cannot be internalized as state, random act
