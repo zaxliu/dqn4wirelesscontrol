@@ -41,10 +41,10 @@ class BaseChannel(object):
                     continue
                 elif node_action[i][0] == -1:
                     channels[i]['receivers'].append(j)
-                    records[i] = (-1, [])
+                    records[j] = (-1, [])
                 elif node_action[i][0] == 1:
                     channels[i]['senders'].append(node_action[i][1:])
-                    records[i] = (1, [])
+                    records[j] = (1, [])
 
         for i in range(channels_num):
             senders = channels[i]['senders']

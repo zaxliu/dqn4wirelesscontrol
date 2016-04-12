@@ -99,8 +99,8 @@ class QAgent(object):
             last_state = tuple(last_state.ravel())  # passed in numpy array
         delta_q = reward + self.GAMMA * best_qval
         self.q_table[(last_state, last_action)] = \
-            self.ALPHA * delta_q + (1 - self.ALPHA) * self.q_table[(last_state, last_action)] \
-            if (last_state, last_action) in self.q_table else self.DEFAULT_QVAL
+            self.ALPHA * delta_q + (1 - self.ALPHA) * (self.q_table[(last_state, last_action)]
+                                                       if (last_state, last_action) in self.q_table else self.DEFAULT_QVAL)
         return None
 
     def act_(self, state):
