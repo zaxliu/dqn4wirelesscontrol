@@ -162,6 +162,7 @@ class QAgentNN(QAgent):
 
     def update_table_(self, last_state, last_action, reward, current_state):
         loss = self.fun_train_batch(self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state))
+        # print self.fun_rs_grad(self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state))
         return loss
 
     def lookup_table_(self, state):
@@ -226,11 +227,13 @@ class QAgentNN(QAgent):
         params = lasagne.layers.get_all_params(network, trainable=True)
         params.append(rs)
         updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=learning_rate, momentum=momentum)
+        rs_grad = theano.grad(loss, [rs])
 
         # functions
         fun_train_batch = theano.function([old_states, actions, rewards, new_states], loss, updates=updates, allow_input_downcast=True)  # training function for one batch
         fun_q_lookup = theano.function([old_states], predict_q, allow_input_downcast=True)
-        fun_rs_lookup = rs.get_value()
+        fun_rs_lookup = rs.get_value
+        # fun_rs_grad = theano.function([old_states, actions, rewards, new_states], rs_grad)
         return fun_train_batch, fun_q_lookup, fun_rs_lookup
 
     class ReplayMemory(object):
@@ -312,7 +315,7 @@ if __name__ == '__main__':
             action, loss = agent.observe_and_act(observation=new_observation, last_reward=reward)
             # print action,
             # print new_observation,
-            print agent.fun_rs_lookup,
+            print agent.fun_rs_lookup(),
             path.append(new_observation)
             episode_reward += reward
             episode_steps += 1
