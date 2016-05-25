@@ -77,8 +77,8 @@ for i in range(0, 10):
         print t.index
     else:
         pass
-    service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'], index=t.index if t is not None else pd.Index([]))
-    service_df['service_per_request_per_domain'] = json.dumps({})
+    service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'], index=t.index if t is not None else pd.Index([]))
+    service_df['service_per_request_domain'] = json.dumps({})
     service_df['sessionID'] = t['sessionID']
     print te.serve_and_reward(service_df=service_df)
 
@@ -93,7 +93,7 @@ for i in range(0, 10):
     t = te.generate_traffic()
     if t is not None:
         print t
-        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'], index=t.index)
+        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'], index=t.index)
 
         for idx in t.index:
             bytesSent_req_domain = json.loads(t.loc[idx, 'bytesSent_per_request_per_domain'])
@@ -103,10 +103,10 @@ for i in range(0, 10):
                     if domain not in service_req_domain:
                         service_req_domain[domain] = {}
                     service_req_domain[domain][int(reqID)] = 'serve'
-            service_df.loc[idx, 'service_per_request_per_domain'] = json.dumps(service_req_domain)
+            service_df.loc[idx, 'service_per_request_domain'] = json.dumps(service_req_domain)
             service_df.loc[idx, 'sessionID'] = t.loc[idx, 'sessionID']
     else:
-        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'], index=pd.Index([]))
+        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'], index=pd.Index([]))
     print te.serve_and_reward(service_df=service_df)
 
 
@@ -121,10 +121,10 @@ for i in range(0, 10):
     t = te.generate_traffic()
     if t is not None:
         print t
-        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'], index=t.index)
+        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'], index=t.index)
 
         for idx in t.index:
-            bytesSent_req_domain = json.loads(t.loc[idx, 'bytesSent_per_request_per_domain'])
+            bytesSent_req_domain = json.loads(t.loc[idx, 'bytesSent_per_request_domain'])
             service_req_domain = {}
             for domain in bytesSent_req_domain:
                 for reqID in bytesSent_req_domain[domain]:
@@ -137,9 +137,9 @@ for i in range(0, 10):
                         service_req_domain[domain][int(reqID)] = 'queue'
                     else:
                         service_req_domain[domain][int(reqID)] = 'reject'
-            service_df.loc[idx, 'service_per_request_per_domain'] = json.dumps(service_req_domain)
+            service_df.loc[idx, 'service_per_request_domain'] = json.dumps(service_req_domain)
             service_df.loc[idx, 'sessionID'] = t.loc[idx, 'sessionID']
     else:
-        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_per_domain'], index=pd.Index([]))
+        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'], index=pd.Index([]))
     print service_df
     print te.serve_and_reward(service_df=service_df)

@@ -353,7 +353,8 @@ class TrafficEmulator:
                         retryReqID = np.array(rejectingReqID)[retryFlag]
                         cancelReqID = np.array(rejectingReqID)[~retryFlag]
                         waitingReqID = list(set(waitingReqID) - set(rejectingReqID))
-                        pendingReqID_epoch.update(self.allocate_reqs_in_epoch(retryReqID, self.epoch+1, end_epoch))
+                        if len(retryReqID) > 0:  # the following fcn call is expensive even if retryReqID is empty
+                            pendingReqID_epoch.update(self.allocate_reqs_in_epoch(retryReqID, self.epoch+1, end_epoch))
                         failedReqID = list(set(failedReqID).union(set(cancelReqID)))
                         reward -= len(retryReqID) + 10*len(cancelReqID)
                         num_retried_c += sum(retryFlag)
