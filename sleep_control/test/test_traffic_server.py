@@ -11,10 +11,10 @@ byteSent_req_domain_list = [{'111.com': {1: 2}, '222.com': {1: 3}},
                             {'333.com': {1: 2}, '444.com': {1: 3}},
                             {'555.com': {1: 2}, '666.com': {1: 3}}
                             ]
-traffic_df = pd.DataFrame(columns=['sessionID', 'uid', 'bytesSent_per_request_per_domain'],
+traffic_df = pd.DataFrame(columns=['sessionID', 'uid', 'bytesSent_per_request_domain'],
                           data={'sessionID': pd.Series([0, 1, 2]),
                                 'uid': pd.Series([0, 1, 2]),
-                                'bytesSent_per_request_per_domain': pd.Series([json.dumps(brd) for brd in byteSent_req_domain_list])
+                                'bytesSent_per_request_domain': pd.Series([json.dumps(brd) for brd in byteSent_req_domain_list])
                                 }
                           )
 

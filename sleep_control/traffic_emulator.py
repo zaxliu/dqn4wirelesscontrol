@@ -51,7 +51,7 @@ class TrafficEmulator:
         # Verbosity ===================================================
         self.verbose = verbose  # verbosity level
         # Reset active session buffer and time counter ================
-        self.active_sessions = None
+        self.active_sessions = {}
         self.epoch = None
         self.reset()
         # Output ======================================================
@@ -73,11 +73,20 @@ class TrafficEmulator:
             print "Run out of session data, please reset emulator!"
             return None
 
+        num_drops = 0
         left = self.head_datetime + self.epoch*self.time_step
         right = left + self.time_step
+
         # Delete sessions that will end in next round from buffer
-        drop_index =  self.active_sessions.index[self.active_sessions['endTime_datetime_updated'] < left]
-        self.active_sessions.drop(drop_index, axis=0, inplace=True)
+        drop_df_keys = []
+        for epoch_key, sessions in self.active_sessions.iteritems():
+            drop_index = sessions.index[sessions['endTime_datetime_updated'] < left]
+            sessions.drop(drop_index, axis=0, inplace=True)
+            num_drops += len(drop_index)
+            drop_df_keys.append(epoch_key) if len(sessions) == 0 else None
+        for epoch_key in drop_df_keys:
+            del self.active_sessions[epoch_key]
+
 
         # if running out of data (left edge out of range), set epoch=None and return None
         if left >= self.tail_datetime:
@@ -90,10 +99,11 @@ class TrafficEmulator:
                                                 (self.session_df['startTime_datetime'] < right)]
         self.append_to_active_sessions_(incoming_sessions)  # append incoming session  to the active session buffer
 
+        num_active_sessions = sum([len(sessions) for epoch, sessions in self.active_sessions.iteritems()])
         if self.verbose > 0:
             print "  TrafficEmulator.generate_traffic(): " \
                   "located {}, droped {}, left {} sessions in epoch {}." \
-                  "".format(len(incoming_sessions), len(drop_index), len(self.active_sessions), self.epoch)
+                  "".format(len(incoming_sessions), num_drops, num_active_sessions, self.epoch)
         traffic_df = self.generate_requests_()  # generate requests for current epoch
         return traffic_df
 
@@ -126,11 +136,7 @@ class TrafficEmulator:
         #   'failedReqID_per_domain' :
         #       Which request of each domain is failed to be served. json encoded dict, key is domain,
         #       value is a list of request IDs. Initialzed with empty dict.
-        self.active_sessions = pd.DataFrame(columns=self.session_df.columns | pd.Index([
-            'endTime_datetime_updated', 'bytes_per_request_domain',
-            'pendingReqID_per_domain', 'servedReqID_per_domain', 'waitingReqID_per_domain',
-            'failedReqID_per_domain',
-        ]))
+        self.active_sessions = {}
         # Time counter
         self.epoch = 0
 
@@ -170,7 +176,8 @@ class TrafficEmulator:
             # 'failedReqID_per_domain' column
             incoming_sessions.loc[idx, 'failedReqID_per_domain'] = json.dumps({})
         # Append incoming session to active session buffer
-        self.active_sessions = self.active_sessions.append(incoming_sessions)
+        if len(incoming_sessions) > 0:
+            self.active_sessions[self.epoch] = incoming_sessions
         return
 
     @staticmethod
@@ -215,43 +222,44 @@ class TrafficEmulator:
         num_req = 0
 
         # Generate requests from each session in the active session buffer
-        for sessionID in self.active_sessions.index:
-            # extract info from active session buffer
-            bytes_req_domain = json.loads(self.active_sessions.loc[sessionID, 'bytes_per_request_domain'])
-            pendingReqID_epoch_domain = json.loads(self.active_sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'])
-            waitingReqID_domain = json.loads(self.active_sessions.loc[sessionID, 'waitingReqID_per_domain'])
+        for epoch_key, sessions in self.active_sessions.iteritems():
+            for sessionID in sessions.index:
+                # extract info from active session buffer
+                bytes_req_domain = json.loads(sessions.loc[sessionID, 'bytes_per_request_domain'])
+                pendingReqID_epoch_domain = json.loads(sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'])
+                waitingReqID_domain = json.loads(sessions.loc[sessionID, 'waitingReqID_per_domain'])
 
-            # Which requests are sent in current epoch under each domain and how many bytes?
-            bytesSent_req_domain = {}  # {domain1: [req1_id: req1_bytes, req2_id: req2_bytes, ...], domain2: ...}
-            for domain in bytes_req_domain:
-                # extract info lists from dicts
-                pendingReqID_epoch = pendingReqID_epoch_domain[domain] if domain in pendingReqID_epoch_domain else {}
-                waitingReqID = waitingReqID_domain[domain] if domain in waitingReqID_domain else []
+                # Which requests are sent in current epoch under each domain and how many bytes?
+                bytesSent_req_domain = {}  # {domain1: [req1_id: req1_bytes, req2_id: req2_bytes, ...], domain2: ...}
+                for domain in bytes_req_domain:
+                    # extract info lists from dicts
+                    pendingReqID_epoch = pendingReqID_epoch_domain[domain] if domain in pendingReqID_epoch_domain else {}
+                    waitingReqID = waitingReqID_domain[domain] if domain in waitingReqID_domain else []
 
-                # decide which req to sent and update info
-                if str(self.epoch) in pendingReqID_epoch:
-                    toSendReqID = pendingReqID_epoch[str(self.epoch)]
-                    del pendingReqID_epoch[str(self.epoch)]
-                else:
-                    toSendReqID = []
-                pendingReqID_epoch_domain[domain] = pendingReqID_epoch
-                waitingReqID = list(set(waitingReqID).union(set(toSendReqID)))  # add toSendReq into waiting list
-                waitingReqID_domain[domain] = waitingReqID
+                    # decide which req to sent and update info
+                    if str(self.epoch) in pendingReqID_epoch:
+                        toSendReqID = pendingReqID_epoch[str(self.epoch)]
+                        del pendingReqID_epoch[str(self.epoch)]
+                    else:
+                        toSendReqID = []
+                    pendingReqID_epoch_domain[domain] = pendingReqID_epoch
+                    waitingReqID = list(set(waitingReqID).union(set(toSendReqID)))  # add toSendReq into waiting list
+                    waitingReqID_domain[domain] = waitingReqID
 
-                # construct traffic dict
-                if len(toSendReqID) > 0:  # build traffic dict
-                    bytesSent_req_domain[domain] = {ID: bytes_req_domain[domain][ID] for ID in toSendReqID}
-                num_req += len(toSendReqID)
+                    # construct traffic dict
+                    if len(toSendReqID) > 0:  # build traffic dict
+                        bytesSent_req_domain[domain] = {ID: bytes_req_domain[domain][ID] for ID in toSendReqID}
+                    num_req += len(toSendReqID)
 
-            # update active session buffer
-            self.active_sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'] = json.dumps(pendingReqID_epoch_domain)
-            self.active_sessions.loc[sessionID, 'waitingReqID_per_domain'] = json.dumps(waitingReqID_domain)
+                # update active session buffer
+                sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'] = json.dumps(pendingReqID_epoch_domain)
+                sessions.loc[sessionID, 'waitingReqID_per_domain'] = json.dumps(waitingReqID_domain)
 
             # generate current_traffic
             if len(bytesSent_req_domain) > 0:
                 traffic_df = traffic_df.append(pd.DataFrame(
                     {'sessionID': sessionID,
-                     'uid': self.active_sessions.loc[sessionID, 'uid'],
+                     'uid': sessions.loc[sessionID, 'uid'],
                      'bytesSent_per_request_domain': json.dumps(bytesSent_req_domain)}, index=[None]),
                     ignore_index=True)
 
@@ -286,91 +294,92 @@ class TrafficEmulator:
         num_served = 0
         num_failed = 0
 
-        for sessionID in self.active_sessions.index:  # interacte with each service row in service_df
-            # extract service info from service_df
-            idx = (service_df['sessionID'] == sessionID).nonzero()[0] \
-                if len(service_df) > 0 else np.array([])
-            if len(idx) == 1:
-                service_req_domain = json.loads(service_df.loc[idx[0], 'service_per_request_domain'])
-            elif len(idx) == 0:
-                service_req_domain = {}
-            else:
-                raise ValueError("TrafficEmulator.evaluate_service_(): more than 1 service entry for a session")
-
-            # extract info from active session buffer
-            end_epoch = int(np.floor(
-                (self.active_sessions.loc[sessionID, 'endTime_datetime_updated'] - self.head_datetime) / self.time_step))
-            pendingReqID_epoch_domain = json.loads(self.active_sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'])
-            waitingReqID_domain = json.loads(self.active_sessions.loc[sessionID, 'waitingReqID_per_domain'])
-            servedReqID_domain = json.loads(self.active_sessions.loc[sessionID, 'servedReqID_per_domain'])
-            failedReqID_domain = json.loads(self.active_sessions.loc[sessionID, 'failedReqID_per_domain'])
-
-            # for each domain, check the services that 'waiting' requests received, and update active session
-            # buffer accordingly
-            for domain in waitingReqID_domain:
-                # extract info from dicts
-                service_req = service_req_domain[domain] if domain in service_req_domain else {}
-                pendingReqID_epoch = pendingReqID_epoch_domain[domain] if domain in pendingReqID_epoch_domain else {}
-                waitingReqID = waitingReqID_domain[domain] if domain in waitingReqID_domain else []
-                servedReqID = servedReqID_domain[domain] if domain in servedReqID_domain else []
-                failedReqID = failedReqID_domain[domain] if domain in failedReqID_domain else []
-                # indices of requests which are served, queued, and rejected...
-                # Note: json converts key to string type
-                servingReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'serve']
-                queuingReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'queue']
-                rejectingReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'reject']
-                # counters
-                num_serving_c += len(servingReqID)
-                num_queuing_c += len(queuingReqID)
-                num_rejecting_c += len(rejectingReqID)
-
-                # Case 1: served requests
-                reward += 1*len(servingReqID)
-                waitingReqID = list(set(waitingReqID) - set(servingReqID))  # move req from waiting list to servied list
-                servedReqID = list(set(servedReqID).union(servingReqID))
-                # Case 2: end of session
-                if self.epoch == end_epoch:
-                    reward -= 10*(reduce(lambda x, y: x+len(y), pendingReqID_epoch.values(), 0) + len(waitingReqID))
-                    failedReqID = list(set(failedReqID).union(
-                        reduce(lambda x,y: x+y, pendingReqID_epoch.values(), [])
-                    ).union(waitingReqID))
-                    pendingReqID_epoch = {}  # pending req ID is a dict
-                    waitingReqID = []
+        for epoch_key, sessions in self.active_sessions.iteritems():
+            for sessionID in sessions.index:  # interacte with each service row in service_df
+                # extract service info from service_df
+                idx = (service_df['sessionID'] == sessionID).nonzero()[0] \
+                    if len(service_df) > 0 else np.array([])
+                if len(idx) == 1:
+                    service_req_domain = json.loads(service_df.loc[idx[0], 'service_per_request_domain'])
+                elif len(idx) == 0:
+                    service_req_domain = {}
                 else:
-                    # Case 3: queued requests
-                    reward -= len(queuingReqID)
-                    # Case 4: rejected requests
-                    retryFlag = np.random.rand(len(rejectingReqID)) < 0.5
-                    retryReqID = np.array(rejectingReqID)[retryFlag]
-                    cancelReqID = np.array(rejectingReqID)[~retryFlag]
-                    waitingReqID = list(set(waitingReqID) - set(rejectingReqID))
-                    pendingReqID_epoch.update(self.allocate_reqs_in_epoch(retryReqID, self.epoch+1, end_epoch))
-                    failedReqID = list(set(failedReqID).union(set(cancelReqID)))
-                    reward -= len(retryReqID) + 10*len(cancelReqID)
-                    num_retried_c += sum(retryFlag)
-                    num_canceled_c += sum(~retryFlag)
-                    # case 5: unattended requests
-                    unattendingReqID = list(set(waitingReqID)-set(queuingReqID))
-                    reward -= len(unattendingReqID)
-                    num_unattended_c += len(unattendingReqID)
+                    raise ValueError("TrafficEmulator.evaluate_service_(): more than 1 service entry for a session")
 
-                # write-back dict
-                pendingReqID_epoch_domain[domain] = pendingReqID_epoch
-                waitingReqID_domain[domain] = waitingReqID
-                servedReqID_domain[domain] = servedReqID
-                failedReqID_domain[domain] = failedReqID
+                # extract info from active session buffer
+                end_epoch = int(np.floor(
+                    (sessions.loc[sessionID, 'endTime_datetime_updated'] - self.head_datetime) / self.time_step))
+                pendingReqID_epoch_domain = json.loads(sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'])
+                waitingReqID_domain = json.loads(sessions.loc[sessionID, 'waitingReqID_per_domain'])
+                servedReqID_domain = json.loads(sessions.loc[sessionID, 'servedReqID_per_domain'])
+                failedReqID_domain = json.loads(sessions.loc[sessionID, 'failedReqID_per_domain'])
 
-                # counters
-                num_pending += reduce(lambda x, y: x+len(y), pendingReqID_epoch.values(), 0)
-                num_waiting += len(waitingReqID)
-                num_served += len(servedReqID)
-                num_failed += len(failedReqID)
+                # for each domain, check the services that 'waiting' requests received, and update active session
+                # buffer accordingly
+                for domain in waitingReqID_domain:
+                    # extract info from dicts
+                    service_req = service_req_domain[domain] if domain in service_req_domain else {}
+                    pendingReqID_epoch = pendingReqID_epoch_domain[domain] if domain in pendingReqID_epoch_domain else {}
+                    waitingReqID = waitingReqID_domain[domain] if domain in waitingReqID_domain else []
+                    servedReqID = servedReqID_domain[domain] if domain in servedReqID_domain else []
+                    failedReqID = failedReqID_domain[domain] if domain in failedReqID_domain else []
+                    # indices of requests which are served, queued, and rejected...
+                    # Note: json converts key to string type
+                    servingReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'serve']
+                    queuingReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'queue']
+                    rejectingReqID = [int(req_id) for req_id in service_req if service_req[req_id] == 'reject']
+                    # counters
+                    num_serving_c += len(servingReqID)
+                    num_queuing_c += len(queuingReqID)
+                    num_rejecting_c += len(rejectingReqID)
 
-            # update active session buffer
-            self.active_sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'] = json.dumps(pendingReqID_epoch_domain)
-            self.active_sessions.loc[sessionID, 'waitingReqID_per_domain'] = json.dumps(waitingReqID_domain)
-            self.active_sessions.loc[sessionID, 'servedReqID_per_domain'] = json.dumps(servedReqID_domain)
-            self.active_sessions.loc[sessionID, 'failedReqID_per_domain'] = json.dumps(failedReqID_domain)
+                    # Case 1: served requests
+                    reward += 1*len(servingReqID)
+                    waitingReqID = list(set(waitingReqID) - set(servingReqID))  # move req from waiting list to servied list
+                    servedReqID = list(set(servedReqID).union(servingReqID))
+                    # Case 2: end of session
+                    if self.epoch == end_epoch:
+                        reward -= 10*(reduce(lambda x, y: x+len(y), pendingReqID_epoch.values(), 0) + len(waitingReqID))
+                        failedReqID = list(set(failedReqID).union(
+                            reduce(lambda x,y: x+y, pendingReqID_epoch.values(), [])
+                        ).union(waitingReqID))
+                        pendingReqID_epoch = {}  # pending req ID is a dict
+                        waitingReqID = []
+                    else:
+                        # Case 3: queued requests
+                        reward -= len(queuingReqID)
+                        # Case 4: rejected requests
+                        retryFlag = np.random.rand(len(rejectingReqID)) < 0.5
+                        retryReqID = np.array(rejectingReqID)[retryFlag]
+                        cancelReqID = np.array(rejectingReqID)[~retryFlag]
+                        waitingReqID = list(set(waitingReqID) - set(rejectingReqID))
+                        pendingReqID_epoch.update(self.allocate_reqs_in_epoch(retryReqID, self.epoch+1, end_epoch))
+                        failedReqID = list(set(failedReqID).union(set(cancelReqID)))
+                        reward -= len(retryReqID) + 10*len(cancelReqID)
+                        num_retried_c += sum(retryFlag)
+                        num_canceled_c += sum(~retryFlag)
+                        # case 5: unattended requests
+                        unattendingReqID = list(set(waitingReqID)-set(queuingReqID))
+                        reward -= len(unattendingReqID)
+                        num_unattended_c += len(unattendingReqID)
+
+                    # write-back dict
+                    pendingReqID_epoch_domain[domain] = pendingReqID_epoch
+                    waitingReqID_domain[domain] = waitingReqID
+                    servedReqID_domain[domain] = servedReqID
+                    failedReqID_domain[domain] = failedReqID
+
+                    # counters
+                    num_pending += reduce(lambda x, y: x+len(y), pendingReqID_epoch.values(), 0)
+                    num_waiting += len(waitingReqID)
+                    num_served += len(servedReqID)
+                    num_failed += len(failedReqID)
+
+                # update active session buffer
+                sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'] = json.dumps(pendingReqID_epoch_domain)
+                sessions.loc[sessionID, 'waitingReqID_per_domain'] = json.dumps(waitingReqID_domain)
+                sessions.loc[sessionID, 'servedReqID_per_domain'] = json.dumps(servedReqID_domain)
+                sessions.loc[sessionID, 'failedReqID_per_domain'] = json.dumps(failedReqID_domain)
 
         if self.verbose > 0:
             print "  TrafficEmulator.evaluate_service_(): " \

@@ -22,7 +22,7 @@ class TrafficServer:
     """
     def __init__(self, verbose=0, cost=1):
         self.epoch = 0
-        self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch', 'bytesSent_per_request_domain'])
+        self.q = {}
         self.verbose = verbose      # verbosity level
         self.last_traffic_ob = 0
         self.last_q_ob = 0
@@ -49,8 +49,8 @@ class TrafficServer:
         # Enqueue traffic
         traffic_df_cp = traffic_df.copy()
         traffic_df_cp['arriveTime_epoch'] = self.epoch
-        self.q = self.q.append(traffic_df_cp, ignore_index=True)
-
+        if len(traffic_df_cp) > 0:
+            self.q[self.epoch] = traffic_df_cp
         return last_q_ob, last_traffic_ob, new_q_ob
 
     def get_service_and_cost(self, control):
@@ -71,7 +71,7 @@ class TrafficServer:
 
     def reset(self):
         self.epoch = 0
-        self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch', 'bytesSent_per_request_domain'])
+        self.q = {}
         self.last_traffic_ob = 0
         self.last_q_ob = 0
 
@@ -98,14 +98,15 @@ class TrafficServer:
         :return: queue observation
         """
         q_len = 0
-        for idx in q.index:
-            bytesSent_req_domain = json.loads(q.loc[idx, 'bytesSent_per_request_domain'])
-            q_len += sum([len(bytesSent_req_domain[domain]) for domain in bytesSent_req_domain])
+        for epoch, df in q.iteritems():
+            for idx in df.index:
+                bytesSent_req_domain = json.loads(df.loc[idx, 'bytesSent_per_request_domain'])
+                q_len += sum([len(bytesSent_req_domain[domain]) for domain in bytesSent_req_domain])
         return q_len
 
     def dequeue_all_traffic_(self):
         q = self.q
-        self.q = pd.DataFrame(columns=['sessionID', 'uid', 'arriveTime_epoch' 'bytesSent_per_request_domain'])
+        self.q = {}
         return q
 
     def serve_requests_(self, control_req):
@@ -115,28 +116,35 @@ class TrafficServer:
         :return:
         """
         service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'])
-        drop_indices = []
         num_req_serve = 0
         num_req_queue = 0
+        num_drops = 0
 
         # iterate through q, append to service_df, merge duplicated session ID, update q
-        for idx in self.q.index:
-            sessionID = int(self.q.loc[idx, 'sessionID'])
-            bytesSent_req_domain = json.loads(self.q.loc[idx, 'bytesSent_per_request_domain'])
-            service_req_domain, bytesSent_req_domain_updated, num_req_serve_row, num_req_queue_row = self.serve_row_(
-                control_req=control_req, bytesSent_req_domain=bytesSent_req_domain
-            )
-            # append to service_df (with dedup)
-            service_df = self.append_service_row(service_df=service_df, sessionID=sessionID, service_req_domain=service_req_domain)
-            # update queue
-            if num_req_queue_row == 0:
-                drop_indices.append(idx)
-            else:
-                self.q.loc[idx, 'bytesSent_req_domain'] = json.dumps(bytesSent_req_domain_updated)
-            # update counter
-            num_req_serve += num_req_serve_row
-            num_req_queue += num_req_queue_row
-        self.q.drop(drop_indices, inplace=True)
+        drop_df_keys = []
+        for epoch_key, df in self.q.iteritems():
+            drop_indices = []
+            for idx in df.index:
+                sessionID = int(df.loc[idx, 'sessionID'])
+                bytesSent_req_domain = json.loads(df.loc[idx, 'bytesSent_per_request_domain'])
+                service_req_domain, bytesSent_req_domain_updated, num_req_serve_row, num_req_queue_row = self.serve_row_(
+                    control_req=control_req, bytesSent_req_domain=bytesSent_req_domain
+                )
+                # append to service_df (with dedup)
+                service_df = self.append_service_row(service_df=service_df, sessionID=sessionID, service_req_domain=service_req_domain)
+                # update queue
+                if num_req_queue_row == 0:
+                    drop_indices.append(idx)
+                else:
+                    df.loc[idx, 'bytesSent_req_domain'] = json.dumps(bytesSent_req_domain_updated)
+                # update counter
+                num_req_serve += num_req_serve_row
+                num_req_queue += num_req_queue_row
+            df.drop(drop_indices, inplace=True)
+            num_drops += len(drop_indices)
+            drop_df_keys.append(epoch_key) if len(df)==0 else None
+        for epoch_key in drop_df_keys:
+            del self.q[epoch_key]
 
         # Verbose message
         if self.verbose > 0:
@@ -153,7 +161,7 @@ class TrafficServer:
 
         if self.verbose > 1:
             print "    TrafficServer:",
-            print "Dropped {} q entries to deduplicate".format(len(drop_indices))
+            print "Dropped {} q entries to deduplicate".format(num_drops)
 
         return service_df
 
