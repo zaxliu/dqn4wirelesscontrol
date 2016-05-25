@@ -84,7 +84,7 @@ class TrafficServer:
         num_req = 0
         num_bytes = 0
         for idx in traffic_df.index:
-            bytesSent_req_domain = json.loads(traffic_df.loc[idx, 'bytesSent_per_request_domain'])
+            bytesSent_req_domain = json.loads(traffic_df.get_value(idx, 'bytesSent_per_request_domain'))
             num_req += sum([len(bytesSent_req_domain[domain]) for domain in bytesSent_req_domain])
             num_bytes += sum([bytesSent_req_domain[domain][reqID]
                               for domain in bytesSent_req_domain for reqID in bytesSent_req_domain[domain]])
@@ -100,7 +100,7 @@ class TrafficServer:
         q_len = 0
         for epoch, df in q.iteritems():
             for idx in df.index:
-                bytesSent_req_domain = json.loads(df.loc[idx, 'bytesSent_per_request_domain'])
+                bytesSent_req_domain = json.loads(df.get_value(idx, 'bytesSent_per_request_domain'))
                 q_len += sum([len(bytesSent_req_domain[domain]) for domain in bytesSent_req_domain])
         return q_len
 
@@ -125,8 +125,8 @@ class TrafficServer:
         for epoch_key, df in self.q.iteritems():
             drop_indices = []
             for idx in df.index:
-                sessionID = int(df.loc[idx, 'sessionID'])
-                bytesSent_req_domain = json.loads(df.loc[idx, 'bytesSent_per_request_domain'])
+                sessionID = int(df.get_value(idx, 'sessionID'))
+                bytesSent_req_domain = json.loads(df.get_value(idx, 'bytesSent_per_request_domain'))
                 service_req_domain, bytesSent_req_domain_updated, num_req_serve_row, num_req_queue_row = self.serve_row_(
                     control_req=control_req, bytesSent_req_domain=bytesSent_req_domain
                 )
@@ -136,7 +136,7 @@ class TrafficServer:
                 if num_req_queue_row == 0:
                     drop_indices.append(idx)
                 else:
-                    df.loc[idx, 'bytesSent_req_domain'] = json.dumps(bytesSent_req_domain_updated)
+                    df.set_value(idx, 'bytesSent_req_domain', json.dumps(bytesSent_req_domain_updated))
                 # update counter
                 num_req_serve += num_req_serve_row
                 num_req_queue += num_req_queue_row
@@ -197,13 +197,13 @@ class TrafficServer:
                 ignore_index=True)
         elif len(flags.nonzero()[0]) == 1:  # merge with existing row
             idx_old = flags.nonzero()[0][0]
-            service_req_domain_old = json.loads(service_df.loc[idx_old, 'service_per_request_domain'])
+            service_req_domain_old = json.loads(service_df.get_value(idx_old, 'service_per_request_domain'))
             for domain in service_req_domain:
                 for reqID in service_req_domain[domain]:
                     if domain not in service_req_domain_old:
                         service_req_domain_old[domain] = {}
                     service_req_domain_old[domain][reqID] = service_req_domain[domain][reqID]
-            service_df.loc[idx_old, 'service_per_request_domain'] = json.dumps(service_req_domain_old)
+            service_df.set_value(idx_old, 'service_per_request_domain', json.dumps(service_req_domain_old))
         else:
             raise ValueError("More than one existing entry found in service_df!")
         return service_df

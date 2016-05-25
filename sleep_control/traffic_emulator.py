@@ -152,29 +152,29 @@ class TrafficEmulator:
         incoming_sessions.loc[:, 'endTime_datetime_updated'] = incoming_sessions['endTime_datetime']
         for idx in incoming_sessions.index:
             # 'bytes_per_request_domain' column
-            domains = incoming_sessions.loc[idx, 'domains'].split(';')
-            bytes_domain = map(int, incoming_sessions.loc[idx, 'bytesByDomain'].split(';'))
-            requests_domain = map(int, incoming_sessions.loc[idx, 'requestsByDomain'].split(';'))
+            domains = incoming_sessions.get_value(idx, 'domains').split(';')
+            bytes_domain = map(int, incoming_sessions.get_value(idx, 'bytesByDomain').split(';'))
+            requests_domain = map(int, incoming_sessions.get_value(idx, 'requestsByDomain').split(';'))
             bytes_request_domain = {
                 domains[i]: self.allocate_bytes_in_req(bytes_domain[i], requests_domain[i])
                 for i in range(len(domains))
             }
-            incoming_sessions.loc[idx, 'bytes_per_request_domain'] = json.dumps(bytes_request_domain)
-            start_epoch = int(np.floor((incoming_sessions.loc[idx, 'startTime_datetime'] - self.head_datetime) / self.time_step))
-            end_epoch = int(np.floor((incoming_sessions.loc[idx, 'endTime_datetime_updated'] - self.head_datetime) / self.time_step))
+            incoming_sessions.set_value(idx, 'bytes_per_request_domain', json.dumps(bytes_request_domain))
+            start_epoch = int(np.floor((incoming_sessions.get_value(idx, 'startTime_datetime') - self.head_datetime) / self.time_step))
+            end_epoch = int(np.floor((incoming_sessions.get_value(idx, 'endTime_datetime_updated') - self.head_datetime) / self.time_step))
             # 'pendingReqID_per_domain' column
             pendingReqID_epoch_domain = {
                 domain: self.allocate_reqs_in_epoch(range(len(bytes_request_domain[domain])), start_epoch, end_epoch)
                 for domain in bytes_request_domain
                 }
-            incoming_sessions.loc[idx, 'pendingReqID_per_epoch_domain'] = json.dumps(pendingReqID_epoch_domain)
+            incoming_sessions.set_value(idx, 'pendingReqID_per_epoch_domain', json.dumps(pendingReqID_epoch_domain))
 
             # 'waitingReqID_per_domain' column
-            incoming_sessions.loc[idx, 'waitingReqID_per_domain'] = json.dumps({})
+            incoming_sessions.set_value(idx, 'waitingReqID_per_domain', json.dumps({}))
             # 'servedReqID_per_domain' column
-            incoming_sessions.loc[idx, 'servedReqID_per_domain'] = json.dumps({})
+            incoming_sessions.set_value(idx, 'servedReqID_per_domain', json.dumps({}))
             # 'failedReqID_per_domain' column
-            incoming_sessions.loc[idx, 'failedReqID_per_domain'] = json.dumps({})
+            incoming_sessions.set_value(idx, 'failedReqID_per_domain', json.dumps({}))
         # Append incoming session to active session buffer
         if len(incoming_sessions) > 0:
             self.active_sessions[self.epoch] = incoming_sessions
@@ -225,9 +225,9 @@ class TrafficEmulator:
         for epoch_key, sessions in self.active_sessions.iteritems():
             for sessionID in sessions.index:
                 # extract info from active session buffer
-                bytes_req_domain = json.loads(sessions.loc[sessionID, 'bytes_per_request_domain'])
-                pendingReqID_epoch_domain = json.loads(sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'])
-                waitingReqID_domain = json.loads(sessions.loc[sessionID, 'waitingReqID_per_domain'])
+                bytes_req_domain = json.loads(sessions.get_value(sessionID, 'bytes_per_request_domain'))
+                pendingReqID_epoch_domain = json.loads(sessions.get_value(sessionID, 'pendingReqID_per_epoch_domain'))
+                waitingReqID_domain = json.loads(sessions.get_value(sessionID, 'waitingReqID_per_domain'))
 
                 # Which requests are sent in current epoch under each domain and how many bytes?
                 bytesSent_req_domain = {}  # {domain1: [req1_id: req1_bytes, req2_id: req2_bytes, ...], domain2: ...}
@@ -252,14 +252,14 @@ class TrafficEmulator:
                     num_req += len(toSendReqID)
 
                 # update active session buffer
-                sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'] = json.dumps(pendingReqID_epoch_domain)
-                sessions.loc[sessionID, 'waitingReqID_per_domain'] = json.dumps(waitingReqID_domain)
+                sessions.set_value(sessionID, 'pendingReqID_per_epoch_domain', json.dumps(pendingReqID_epoch_domain))
+                sessions.set_value(sessionID, 'waitingReqID_per_domain', json.dumps(waitingReqID_domain))
 
             # generate current_traffic
             if len(bytesSent_req_domain) > 0:
                 traffic_df = traffic_df.append(pd.DataFrame(
                     {'sessionID': sessionID,
-                     'uid': sessions.loc[sessionID, 'uid'],
+                     'uid': sessions.get_value(sessionID, 'uid'),
                      'bytesSent_per_request_domain': json.dumps(bytesSent_req_domain)}, index=[None]),
                     ignore_index=True)
 
@@ -300,7 +300,7 @@ class TrafficEmulator:
                 idx = (service_df['sessionID'] == sessionID).nonzero()[0] \
                     if len(service_df) > 0 else np.array([])
                 if len(idx) == 1:
-                    service_req_domain = json.loads(service_df.loc[idx[0], 'service_per_request_domain'])
+                    service_req_domain = json.loads(service_df.get_value(idx[0], 'service_per_request_domain'))
                 elif len(idx) == 0:
                     service_req_domain = {}
                 else:
@@ -308,11 +308,11 @@ class TrafficEmulator:
 
                 # extract info from active session buffer
                 end_epoch = int(np.floor(
-                    (sessions.loc[sessionID, 'endTime_datetime_updated'] - self.head_datetime) / self.time_step))
-                pendingReqID_epoch_domain = json.loads(sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'])
-                waitingReqID_domain = json.loads(sessions.loc[sessionID, 'waitingReqID_per_domain'])
-                servedReqID_domain = json.loads(sessions.loc[sessionID, 'servedReqID_per_domain'])
-                failedReqID_domain = json.loads(sessions.loc[sessionID, 'failedReqID_per_domain'])
+                    (sessions.get_value(sessionID, 'endTime_datetime_updated') - self.head_datetime) / self.time_step))
+                pendingReqID_epoch_domain = json.loads(sessions.get_value(sessionID, 'pendingReqID_per_epoch_domain'))
+                waitingReqID_domain = json.loads(sessions.get_value(sessionID, 'waitingReqID_per_domain'))
+                servedReqID_domain = json.loads(sessions.get_value(sessionID, 'servedReqID_per_domain'))
+                failedReqID_domain = json.loads(sessions.get_value(sessionID, 'failedReqID_per_domain'))
 
                 # for each domain, check the services that 'waiting' requests received, and update active session
                 # buffer accordingly
@@ -377,10 +377,10 @@ class TrafficEmulator:
                     num_failed += len(failedReqID)
 
                 # update active session buffer
-                sessions.loc[sessionID, 'pendingReqID_per_epoch_domain'] = json.dumps(pendingReqID_epoch_domain)
-                sessions.loc[sessionID, 'waitingReqID_per_domain'] = json.dumps(waitingReqID_domain)
-                sessions.loc[sessionID, 'servedReqID_per_domain'] = json.dumps(servedReqID_domain)
-                sessions.loc[sessionID, 'failedReqID_per_domain'] = json.dumps(failedReqID_domain)
+                sessions.set_value(sessionID, 'pendingReqID_per_epoch_domain', json.dumps(pendingReqID_epoch_domain))
+                sessions.set_value(sessionID, 'waitingReqID_per_domain', json.dumps(waitingReqID_domain))
+                sessions.set_value(sessionID, 'servedReqID_per_domain', json.dumps(servedReqID_domain))
+                sessions.set_value(sessionID, 'failedReqID_per_domain', json.dumps(failedReqID_domain))
 
         if self.verbose > 0:
             print "  TrafficEmulator.evaluate_service_(): " \

@@ -96,7 +96,7 @@ for i in range(0, 10):
         service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'], index=t.index)
 
         for idx in t.index:
-            bytesSent_req_domain = json.loads(t.loc[idx, 'bytesSent_per_request_per_domain'])
+            bytesSent_req_domain = json.loads(t.loc[idx, 'bytesSent_per_request_domain'])
             service_req_domain = {}
             for domain in bytesSent_req_domain:
                 for reqID in bytesSent_req_domain[domain]:
