@@ -73,20 +73,10 @@ class TrafficEmulator:
             print "Run out of session data, please reset emulator!"
             return None
 
-        num_drops = 0
         left = self.head_datetime + self.epoch*self.time_step
         right = left + self.time_step
 
-        # Delete sessions that will end in next round from buffer
-        drop_df_keys = []
-        for epoch_key, sessions in self.active_sessions.iteritems():
-            drop_index = sessions.index[sessions['endTime_datetime_updated'] < left]
-            sessions.drop(drop_index, axis=0, inplace=True)
-            num_drops += len(drop_index)
-            drop_df_keys.append(epoch_key) if len(sessions) == 0 else None
-        for epoch_key in drop_df_keys:
-            del self.active_sessions[epoch_key]
-
+        num_drops = self.drop_expiring_sessions_(left)
 
         # if running out of data (left edge out of range), set epoch=None and return None
         if left >= self.tail_datetime:
@@ -95,15 +85,13 @@ class TrafficEmulator:
             return None
 
         # else, get sessions initiated in this epoch
-        incoming_sessions = self.session_df.loc[(self.session_df['startTime_datetime'] >= left) &
-                                                (self.session_df['startTime_datetime'] < right)]
-        self.append_to_active_sessions_(incoming_sessions)  # append incoming session  to the active session buffer
+        num_incoming_sessions, num_active_sessions = self.append_to_active_sessions_(left, right)  # append incoming session to the active session buffer
 
-        num_active_sessions = sum([len(sessions) for epoch, sessions in self.active_sessions.iteritems()])
+        # logging
         if self.verbose > 0:
             print "  TrafficEmulator.generate_traffic(): " \
                   "located {}, droped {}, left {} sessions in epoch {}." \
-                  "".format(len(incoming_sessions), num_drops, num_active_sessions, self.epoch)
+                  "".format(num_incoming_sessions, num_drops, num_active_sessions, self.epoch)
         traffic_df = self.generate_requests_()  # generate requests for current epoch
         return traffic_df
 
@@ -141,7 +129,7 @@ class TrafficEmulator:
         self.epoch = 0
 
     # Private Methods
-    def append_to_active_sessions_(self, incoming_sessions):
+    def append_to_active_sessions_(self, left, right):
         """Append incoming sessions to active session buffer and adjust format.
 
         :param incoming_sessions: incoming session DataFrame
@@ -149,6 +137,11 @@ class TrafficEmulator:
         """
         # Initialize internal state columns for each session
         # 'endTime_datetime_updated' column
+        # incoming_sessions = self.session_df.loc[(self.session_df['startTime_datetime'] >= left) &
+        #                                         (self.session_df['startTime_datetime'] < right)]
+        left_idx = self.session_df['startTime_datetime'].searchsorted(left, side='left')
+        right_idx = self.session_df['startTime_datetime'].searchsorted(right, side='right')
+        incoming_sessions = self.session_df.iloc[left_idx:right_idx]
         incoming_sessions.loc[:, 'endTime_datetime_updated'] = incoming_sessions['endTime_datetime']
         for idx in incoming_sessions.index:
             # 'bytes_per_request_domain' column
@@ -178,7 +171,8 @@ class TrafficEmulator:
         # Append incoming session to active session buffer
         if len(incoming_sessions) > 0:
             self.active_sessions[self.epoch] = incoming_sessions
-        return
+        num_active_sessions = sum([len(sessions) for epoch, sessions in self.active_sessions.iteritems()])
+        return len(incoming_sessions), num_active_sessions
 
     @staticmethod
     def allocate_bytes_in_req(bytes, requests):
@@ -392,3 +386,15 @@ class TrafficEmulator:
                 num_pending, num_waiting, num_served, num_failed)
 
         return reward
+
+    def drop_expiring_sessions_(self, left):
+        num_drops = 0
+        drop_df_keys = []
+        for epoch_key, sessions in self.active_sessions.iteritems():
+            drop_index = sessions.index[sessions['endTime_datetime_updated'] < left]
+            sessions.drop(drop_index, axis=0, inplace=True)
+            num_drops += len(drop_index)
+            drop_df_keys.append(epoch_key) if len(sessions) == 0 else None
+        for epoch_key in drop_df_keys:
+            del self.active_sessions[epoch_key]
+        return num_drops
