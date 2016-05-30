@@ -249,13 +249,13 @@ class TrafficEmulator:
                 sessions.set_value(sessionID, 'pendingReqID_per_epoch_domain', json.dumps(pendingReqID_epoch_domain))
                 sessions.set_value(sessionID, 'waitingReqID_per_domain', json.dumps(waitingReqID_domain))
 
-            # generate current_traffic
-            if len(bytesSent_req_domain) > 0:
-                traffic_df = traffic_df.append(pd.DataFrame(
-                    {'sessionID': sessionID,
-                     'uid': sessions.get_value(sessionID, 'uid'),
-                     'bytesSent_per_request_domain': json.dumps(bytesSent_req_domain)}, index=[None]),
-                    ignore_index=True)
+                # generate current_traffic
+                if len(bytesSent_req_domain) > 0:
+                    traffic_df = traffic_df.append(pd.DataFrame(
+                        {'sessionID': sessionID,
+                         'uid': sessions.get_value(sessionID, 'uid'),
+                         'bytesSent_per_request_domain': json.dumps(bytesSent_req_domain)}, index=[None]),
+                        ignore_index=True)
 
         if self.verbose > 0:
             print "  TrafficEmulator.generate_requests_(): generated {} requests at epoch {}.".format(num_req, self.epoch)
