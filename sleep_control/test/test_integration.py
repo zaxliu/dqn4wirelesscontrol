@@ -31,8 +31,8 @@ ts = TrafficServer(verbose=2)
 # ACTIONS = [(s, c) for s in [True, False] for c in ['serve_all', 'queue_all', 'random_serve_and_queue']]
 actions = [(True, None), (False, 'serve_all')]
 # agent = QAgent(ACTIONS=ACTIONS, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
-agent = QAgentNN(dim_state=(1, 1, 3), range_state=((((0, 1000), (0, 1000), (0, 1000),),),),
-                 learning_rate=0.01, reward_scaling=1000, batch_size=10, freeze_period=5, memory_size=20, num_buffer=2,
+agent = QAgentNN(dim_state=(1, 1, 3), range_state=((((0, 10), (0, 10), (0, 10),),),),
+                 learning_rate=0.01, reward_scaling=10, batch_size=100, freeze_period=50, memory_size=200, num_buffer=2,
                  actions=actions, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1,
                  verbose=2
                  )
