@@ -29,7 +29,7 @@ class QAgentNN(QAgent):
     """
     def __init__(self, dim_state, range_state,  # basics
                  net=None, batch_size=100, learning_rate=0.01, momentum=0.9,  # nn related
-                 reward_scaling=1, freeze_period=0,
+                 reward_scaling=1, reward_scaling_update='fixed', freeze_period=0,
                  memory_size=500, num_buffer=1,  # replay memory related
                  **kwargs):
         """Initialize NN-based Q Agent
@@ -42,7 +42,8 @@ class QAgentNN(QAgent):
         batch_size  : batch size for mini-batch stochastic gradient descent (SGD) training.
         learning_rate  : step size of a single gradient descent step.
         momentum    : faction of old weight values kept during gradient descent.
-        reward_scaling : inverse scaling factor for reward, 'adaptive' if treated as trainable parameter.
+        reward_scaling : initial value for inverse reward scaling factor
+        reward_scaling_update : 'fixed' & 'adaptive'
         freeze_period  : the periodicity for training the q network.
         memory_size : size of replay memory (each buffer).
         num_buffer  : number of buffers used in replay memory
@@ -67,13 +68,15 @@ class QAgentNN(QAgent):
         self.LEARNING_RATE = learning_rate
         self.MOMENTUM = momentum
         self.REWARD_SCALING = reward_scaling
+        self.REWARD_SCALING_UPDATE = reward_scaling_update
         # set q table as a NN
         if not net:
             net = QAgentNN.build_qnn_(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
         self.q_table = net
         self.fun_train_batch, self.fun_q_lookup, self.fun_rs_lookup\
             = QAgentNN.init_fun_(self.q_table, self.DIM_STATE, self.BATCH_SIZE, self.GAMMA,
-                                 self.LEARNING_RATE, self.MOMENTUM, self.REWARD_SCALING)
+                                 self.LEARNING_RATE, self.MOMENTUM,
+                                 self.REWARD_SCALING, self.REWARD_SCALING_UPDATE)
         self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(self.ACTIONS), num_buffer)
         self.freeze_counter = 0
 
@@ -195,7 +198,7 @@ class QAgentNN(QAgent):
         return l_out
 
     @staticmethod
-    def init_fun_(net, dim_state, batch_size, gamma, learning_rate, momentum, reward_scaling):
+    def init_fun_(net, dim_state, batch_size, gamma, learning_rate, momentum, reward_scaling, reward_scaling_update):
         """Define and compile function to train and evaluate network
         :param net: Lasagne output layer
         :param dim_state: dimensions of a single state tensor
@@ -204,6 +207,7 @@ class QAgentNN(QAgent):
         :param learning_rate:
         :param momentum:
         :param reward_scaling:
+        :param reward_scaling_update:
         :return:
         """
         if len(dim_state) != 3:
@@ -213,12 +217,7 @@ class QAgentNN(QAgent):
         old_states, new_states = T.tensor4s('old_states', 'new_states')   # (BATCH_SIZE, MEMORY_LENGTH, DIM_STATE[0], DIM_STATE[1])
         actions = T.ivector('actions')           # (BATCH_SIZE, 1)
         rewards = T.vector('rewards')            # (BATCH_SIZE, 1)
-        if isinstance(reward_scaling, int) or isinstance(reward_scaling, float):
-            rs = shared(value=reward_scaling*1.0, name='reward_scaling')
-        elif isinstance(reward_scaling, str) and reward_scaling == 'adaptive':
-            rs = shared(value=1.0, name='reward_scaling')
-        else:
-            raise TypeError('Type of reward_scaling nont understood.')
+        rs = shared(value=reward_scaling*1.0, name='reward_scaling')
 
         # intermediates
         network = net
@@ -231,8 +230,12 @@ class QAgentNN(QAgent):
 
         # weight update formulas (mini-batch SGD with momentum)
         params = lasagne.layers.get_all_params(network, trainable=True)
-        if isinstance(reward_scaling, str):
+        if reward_scaling_update == 'fixed':
+            pass
+        elif reward_scaling_update == 'adaptive':
             params.append(rs)  # also update rs
+        else:
+            raise ValueError('reward_scaling_update {} not understood!'.format(reward_scaling_update))
         updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=learning_rate, momentum=momentum)
 
         # functions
@@ -292,7 +295,8 @@ class QAgentNN(QAgent):
 if __name__ == '__main__':
     maze = SimpleMaze()
     agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 3),(0, 4)),),), actions=maze.ACTIONS,
-                     learning_rate=0.01, reward_scaling='adaptive', batch_size=100,
+                     learning_rate=0.01, reward_scaling=1.0, reward_scaling_update='adaptive',
+                     batch_size=100,
                      freeze_period=20, memory_size=1000,
                      alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02)
     print "Maze and agent initialized!"
