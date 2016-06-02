@@ -31,7 +31,7 @@ class TrafficEmulator:
         Verbosity level.
     """
     def __init__(self, session_df=None, head_datetime=None, tail_datetime=None, time_step=pd.Timedelta(seconds=1),
-                 verbose=0):
+                 rewarding=None, verbose=0):
         # Dataset =====================================================
         if session_df is None:
             print "TrafficEmulator Initialization: session_df passed in is empty or None."
@@ -48,6 +48,12 @@ class TrafficEmulator:
             print "head_datetime > tail_datetime"
             raise ValueError
         self.time_step = time_step
+        # Rewarding mechanism==========================================
+        if rewarding is None:
+            rewarding = {'serve': 1, 'wait': -1, 'fail': -10}
+        self.Rs = rewarding['serve'] if 'serve' in rewarding else 1  # service reward, default 1
+        self.Rw = rewarding['wait'] if 'wait' in rewarding else -1   # waiting reward, default -1
+        self.Rf = rewarding['fail'] if 'fail' in rewarding else -10  # fail reward, default -10
         # Verbosity ===================================================
         self.verbose = verbose  # verbosity level
         # Reset active session buffer and time counter ================
@@ -139,8 +145,8 @@ class TrafficEmulator:
         # 'endTime_datetime_updated' column
         # incoming_sessions = self.session_df.loc[(self.session_df['startTime_datetime'] >= left) &
         #                                         (self.session_df['startTime_datetime'] < right)]
-        left_idx = self.session_df['startTime_datetime'].searchsorted(left, side='left')
-        right_idx = self.session_df['startTime_datetime'].searchsorted(right, side='right')
+        left_idx = int(self.session_df['startTime_datetime'].searchsorted(left, side='left'))
+        right_idx = int(self.session_df['startTime_datetime'].searchsorted(right, side='right'))
         incoming_sessions = self.session_df.iloc[left_idx:right_idx]
         incoming_sessions.loc[:, 'endTime_datetime_updated'] = incoming_sessions['endTime_datetime']
         for idx in incoming_sessions.index:
@@ -276,7 +282,9 @@ class TrafficEmulator:
         :param service_df: a data frame indicating the service for each traffic row
         :return: a scalar last_reward for the service
         """
-        reward = 0  # Set initial reward to zero
+        reward_s = 0  # Set initial rewards to zero
+        reward_w = 0
+        reward_f = 0
         num_serving_c = 0
         num_queuing_c = 0
         num_rejecting_c = 0
@@ -328,12 +336,12 @@ class TrafficEmulator:
                     num_rejecting_c += len(rejectingReqID)
 
                     # Case 1: served requests
-                    reward += 1*len(servingReqID)
+                    reward_s += self.Rs*len(servingReqID)
                     waitingReqID = list(set(waitingReqID) - set(servingReqID))  # move req from waiting list to servied list
                     servedReqID = list(set(servedReqID).union(servingReqID))
                     # Case 2: end of session
                     if self.epoch == end_epoch:
-                        reward -= 10*(reduce(lambda x, y: x+len(y), pendingReqID_epoch.values(), 0) + len(waitingReqID))
+                        reward_f += self.Rf*(reduce(lambda x, y: x+len(y), pendingReqID_epoch.values(), 0) + len(waitingReqID))
                         failedReqID = list(set(failedReqID).union(
                             reduce(lambda x,y: x+y, pendingReqID_epoch.values(), [])
                         ).union(waitingReqID))
@@ -341,7 +349,7 @@ class TrafficEmulator:
                         waitingReqID = []
                     else:
                         # Case 3: queued requests
-                        reward -= len(queuingReqID)
+                        reward_w += self.Rw*len(queuingReqID)
                         # Case 4: rejected requests
                         retryFlag = np.random.rand(len(rejectingReqID)) < 0.5
                         retryReqID = np.array(rejectingReqID)[retryFlag]
@@ -350,12 +358,13 @@ class TrafficEmulator:
                         if len(retryReqID) > 0:  # the following fcn call is expensive even if retryReqID is empty
                             pendingReqID_epoch.update(self.allocate_reqs_in_epoch(retryReqID, self.epoch+1, end_epoch))
                         failedReqID = list(set(failedReqID).union(set(cancelReqID)))
-                        reward -= len(retryReqID) + 10*len(cancelReqID)
+                        reward_w += self.Rw*len(retryReqID)
+                        reward_f += self.Rf*len(cancelReqID)
                         num_retried_c += sum(retryFlag)
                         num_canceled_c += sum(~retryFlag)
                         # case 5: unattended requests
                         unattendingReqID = list(set(waitingReqID)-set(queuingReqID))
-                        reward -= len(unattendingReqID)
+                        reward_w += self.Rw*len(unattendingReqID)
                         num_unattended_c += len(unattendingReqID)
 
                     # write-back dict
@@ -378,14 +387,14 @@ class TrafficEmulator:
 
         if self.verbose > 0:
             print "  TrafficEmulator.evaluate_service_(): " \
-                  "served {}, queued {}, rejected {} ({}, {}), unattended {} at epoch {}, rewarded {}".format(
+                  "served {}, queued {}, rejected {} ({}, {}), unattended {} at epoch {}, reward {} ({}, {}, {})".format(
                 num_serving_c, num_queuing_c, num_rejecting_c, num_retried_c, num_canceled_c, num_unattended_c,
-                self.epoch, reward)
+                self.epoch, reward_s+reward_w+reward_f, reward_s, reward_w, reward_f)
             print "  TrafficEmulator.evaluate_service_(): " \
                   "buffer info: pending {}, waiting {}, served {}, failed {}".format(
                 num_pending, num_waiting, num_served, num_failed)
 
-        return reward
+        return reward_s+reward_w+reward_f
 
     def drop_expiring_sessions_(self, left):
         num_drops = 0
