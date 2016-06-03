@@ -151,7 +151,9 @@ class QAgentNN(QAgent):
                     )
                 if self.verbose > 0:
                     print "  QAgentNN: ",
-                    print "update loss is {} at counter {}".format(loss, self.freeze_counter)
+                    print "update loss is {} at counter {}, reward_scaling is {}".format(loss,
+                                                                                         self.freeze_counter,
+                                                                                         self.REWARD_SCALING)
             else:
                 if self.verbose > 0:
                     print "  QAgentNN: ",
@@ -165,7 +167,7 @@ class QAgentNN(QAgent):
 
     def update_table_(self, last_state, last_action, reward, current_state):
         loss = self.fun_train_batch(self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state))
-        # print self.fun_rs_grad(self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state))
+        self.REWARD_SCALING = self.fun_rs_lookup()
         return loss
 
     def lookup_table_(self, state):
@@ -222,7 +224,8 @@ class QAgentNN(QAgent):
         # intermediates
         network = net
         predict_q = lasagne.layers.get_output(layer_or_layers=network, inputs=old_states)
-        predict_next_q = lasagne.layers.get_output(layer_or_layers=network, inputs=new_states)
+        predict_next_q = theano.gradient.disconnected_grad(
+            lasagne.layers.get_output(layer_or_layers=network, inputs=new_states))
         target_q = rewards/rs + gamma*T.max(predict_next_q, axis=1)
 
         # outputs
@@ -295,10 +298,10 @@ class QAgentNN(QAgent):
 if __name__ == '__main__':
     maze = SimpleMaze()
     agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 3),(0, 4)),),), actions=maze.ACTIONS,
-                     learning_rate=0.01, reward_scaling=1.0, reward_scaling_update='adaptive',
+                     learning_rate=0.01, reward_scaling=1.0, reward_scaling_update='fixed',
                      batch_size=100,
                      freeze_period=20, memory_size=1000,
-                     alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02)
+                     alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02, verbose=2)
     print "Maze and agent initialized!"
 
     # logging
@@ -318,19 +321,19 @@ if __name__ == '__main__':
         episode_steps = 0
         episode_loss = 0
 
-        print '(',
+        # print '(',
         # interact and reinforce repeatedly
         while not maze.isfinished():
             new_observation, reward = maze.interact(action)
             action, loss = agent.observe_and_act(observation=new_observation, last_reward=reward)
             # print action,
             # print new_observation,
-            print agent.fun_rs_lookup(),
+            # print agent.fun_rs_lookup(),
             path.append(new_observation)
             episode_reward += reward
             episode_steps += 1
             episode_loss += loss if loss else 0
-        print '):',
+        # print '):',
         print len(path)
         # print "{:.3f}".format(episode_loss),
         # print ""
