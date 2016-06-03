@@ -62,3 +62,20 @@ class QController(BaseController):
     def reset(self):
         self.epoch = 0
 
+
+class NController(BaseController):
+    def __init__(self, N=10):
+        self.N = N
+        self.epoch = 0
+
+    def observe_and_control(self, observation, last_reward=None):
+        if observation is not None:
+            last_q_len, last_traffic_req, new_q_len = observation
+        else:
+            last_q_len, last_traffic_req, new_q_len = 0, 0, 0
+        (sleep_flag, control_req) = (True, None) if new_q_len <= self.N else (False, 'serve_all')
+        self.epoch += 1
+        return (sleep_flag, control_req), None
+
+    def reset(self):
+        self.epoch = 0
