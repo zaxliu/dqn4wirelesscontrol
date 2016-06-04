@@ -2,8 +2,7 @@ import numpy as np
 import pandas as pd
 import json
 
-
-class TrafficEmulator:
+class TrafficEmulator(object):
     """Emulate the traffic-generation behavior of a bunch of users
 
     Emulate the session dynamics in a network as the result of the interaction between a user population and
@@ -34,8 +33,7 @@ class TrafficEmulator:
                  rewarding=None, verbose=0):
         # Dataset =====================================================
         if session_df is None:
-            print "TrafficEmulator Initialization: session_df passed in is empty or None."
-            raise ValueError
+            raise ValueError("TrafficEmulator Initialization: session_df passed in is empty or None.")
         self.session_df = session_df  # Initialize session dataset
         # Time-related variables ======================================
         # starting datetime of the simulation, use datetime of first session arrival if not assigned
@@ -407,3 +405,70 @@ class TrafficEmulator:
         for epoch_key in drop_df_keys:
             del self.active_sessions[epoch_key]
         return num_drops
+
+
+class PoissonEmulator(TrafficEmulator):
+    def __init__(self, mu=1, **kwargs):
+        super(PoissonEmulator, self).__init__(**kwargs)
+        self.MU = mu
+
+    def append_to_active_sessions_(self, left, right):
+        """Generate poisson traffic and append to
+
+        """
+        incoming_sessions = pd.DataFrame(data=[],
+                                         index=[self.epoch],
+                                         columns=['uid',
+                                                  'bytes_per_request_domain',
+                                                  'pendingReqID_per_epoch_domain',
+                                                  'waitingReqID_per_domain',
+                                                  'servedReqID_per_domain',
+                                                  'failedReqID_per_domain'])
+        incoming_sessions.set_value(self.epoch, 'uid', 0)
+        incoming_sessions.set_value(self.epoch, 'endTime_datetime_updated', self.tail_datetime)
+
+        idx = self.epoch
+        # 'bytes_per_request_domain' column
+        n_requests = np.random.poisson(self.MU)
+        bytes_request_domain = {'fake.com': [-1]*n_requests}
+        incoming_sessions.set_value(idx, 'bytes_per_request_domain', json.dumps(bytes_request_domain))
+        # 'pendingReqID_per_domain' column
+        pendingReqID_epoch_domain = {'fake.com': {self.epoch: range(n_requests)}}
+        incoming_sessions.set_value(idx, 'pendingReqID_per_epoch_domain', json.dumps(pendingReqID_epoch_domain))
+
+        # 'waitingReqID_per_domain' column
+        incoming_sessions.set_value(idx, 'waitingReqID_per_domain', json.dumps({}))
+        # 'servedReqID_per_domain' column
+        incoming_sessions.set_value(idx, 'servedReqID_per_domain', json.dumps({}))
+        # 'failedReqID_per_domain' column
+        incoming_sessions.set_value(idx, 'failedReqID_per_domain', json.dumps({}))
+
+        # Append incoming session to active session buffer
+        if len(incoming_sessions) > 0:
+            self.active_sessions[self.epoch] = incoming_sessions
+        num_active_sessions = sum([len(sessions) for epoch, sessions in self.active_sessions.iteritems()])
+        return len(incoming_sessions), num_active_sessions
+
+    def drop_expiring_sessions_(self, left):
+        num_drops = 0
+        drop_df_keys = []
+        for epoch_key, sessions in self.active_sessions.iteritems():
+            drop_index = [sessionID for sessionID in sessions.index
+                          if PoissonEmulator.if_session_empty(sessionID, sessions)]
+            sessions.drop(drop_index, axis=0, inplace=True)
+            num_drops += len(drop_index)
+            drop_df_keys.append(epoch_key) if len(sessions) == 0 else None
+        for epoch_key in drop_df_keys:
+            del self.active_sessions[epoch_key]
+        return num_drops
+
+    @staticmethod
+    def if_session_empty(sessionID, sessions):
+        pendingReqID_epoch_domain = json.loads(sessions.get_value(sessionID, 'pendingReqID_per_epoch_domain'))
+        waitingReqID_domain = json.loads(sessions.get_value(sessionID, 'waitingReqID_per_domain'))
+        num_pending = sum([len(pendingReqID_epoch_domain[domain][epoch])
+                           for domain in pendingReqID_epoch_domain
+                           for epoch in pendingReqID_epoch_domain[domain]])
+        num_waiting = sum([len(waitingReqID_domain[domain]) for domain in waitingReqID_domain])
+        return num_pending==0 and num_waiting==0
+

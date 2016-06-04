@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import json
-from sleep_control.traffic_emulator import TrafficEmulator
+from sleep_control.traffic_emulator import TrafficEmulator, PoissonEmulator
 
 pd.set_option('mode.chained_assignment', None)
 
@@ -116,6 +116,40 @@ head = pd.datetime(year=2014, month=9, day=4, hour=1)
 tail = pd.datetime(year=2014, month=9, day=4, hour=1, minute=1, second=50)
 time_step = pd.Timedelta(seconds=10)
 te = TrafficEmulator(session_df, head_datetime=head, tail_datetime=tail, time_step=time_step,verbose=0)
+for i in range(0, 10):
+    print "{} to {}".format(head+i*time_step, head+(i+1)*time_step)
+    t = te.generate_traffic()
+    if t is not None:
+        print t
+        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'], index=t.index)
+
+        for idx in t.index:
+            bytesSent_req_domain = json.loads(t.loc[idx, 'bytesSent_per_request_domain'])
+            service_req_domain = {}
+            for domain in bytesSent_req_domain:
+                for reqID in bytesSent_req_domain[domain]:
+                    if domain not in service_req_domain:
+                        service_req_domain[domain] = {}
+                    r = np.random.rand()
+                    if r < 1.0/3:
+                        service_req_domain[domain][int(reqID)] = 'serve'
+                    elif r < 2.0/3:
+                        service_req_domain[domain][int(reqID)] = 'queue'
+                    else:
+                        service_req_domain[domain][int(reqID)] = 'reject'
+            service_df.loc[idx, 'service_per_request_domain'] = json.dumps(service_req_domain)
+            service_df.loc[idx, 'sessionID'] = t.loc[idx, 'sessionID']
+    else:
+        service_df = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'], index=pd.Index([]))
+    print service_df
+    print te.serve_and_reward(service_df=service_df)
+
+# Poission Emulator
+print "=======Poisson======="
+head = pd.datetime(year=2014, month=9, day=4, hour=1)
+tail = pd.datetime(year=2014, month=9, day=4, hour=1, minute=1, second=50)
+time_step = pd.Timedelta(seconds=10)
+te = PoissonEmulator(session_df=session_df, head_datetime=head, tail_datetime=tail, time_step=time_step, verbose=0, mu=3)
 for i in range(0, 10):
     print "{} to {}".format(head+i*time_step, head+(i+1)*time_step)
     t = te.generate_traffic()
