@@ -165,6 +165,7 @@ if __name__ == "__main__":
         path.clear()
         episode_reward = 0
         episode_steps = 0
+
         # interact and reinforce repeatedly
         while not maze.isfinished():
             new_observation, reward = maze.interact(action)
@@ -172,6 +173,7 @@ if __name__ == "__main__":
             path.append(new_observation)
             episode_reward += reward
             episode_steps += 1
+        print len(path),
 
         cum_steps += episode_steps
         cum_reward += episode_reward
