@@ -64,8 +64,10 @@ class QController(BaseController):
 
 
 class NController(BaseController):
-    def __init__(self, N=10):
-        self.N = N
+    def __init__(self, N_on=10, N_off=0):
+        self.N_on = N_on
+        self.N_off = N_off
+        self.last_action = None
         self.epoch = 0
 
     def observe_and_control(self, observation, last_reward=None):
@@ -73,7 +75,13 @@ class NController(BaseController):
             last_q_len, last_traffic_req, new_q_len = observation
         else:
             last_q_len, last_traffic_req, new_q_len = 0, 0, 0
-        (sleep_flag, control_req) = (True, None) if new_q_len <= self.N else (False, 'serve_all')
+        if new_q_len >= self.N_on:
+            (sleep_flag, control_req) = (False, 'serve_all')
+        elif new_q_len <= self.N_off:
+            (sleep_flag, control_req) = (True, None)
+        else:
+            (sleep_flag, control_req) = self.last_action if self.last_action is not None else (True, None)
+        self.last_action = (sleep_flag, control_req)
         self.epoch += 1
         return (sleep_flag, control_req), None
 
