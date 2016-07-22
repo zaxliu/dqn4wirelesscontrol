@@ -4,27 +4,29 @@ from controller import DummyController
 
 
 class Emulation:
-    def __init__(self, te=None, ts=None, c=None):
+    def __init__(self, te=None, ts=None, c=None, beta=None):
         self.te = TrafficEmulator() if te is None else te
         self.ts = TrafficServer() if ts is None else ts
         self.c = DummyController() if c is None else c
         self.epoch = 0
         self.last_reward = None
         self.last_cost = None
+        self.BETA = beta
 
     def step(self):
         if self.last_reward is None or self.last_cost is None:
-            overall_reward = None
+            system_reward = None
         else:
-            overall_reward = self.last_reward - self.last_cost
-        print "Last reward: {}".format(overall_reward)
+            system_reward = (self.last_reward - self.last_cost) if self.BETA is None \
+                else (self.BETA*self.last_reward - (1-self.BETA)*self.last_cost)
+        print "Last reward: {}".format(system_reward)
         observation = self.get_observation_()
         print "Observation: {}".format(observation)
         if observation is None:
             print "Run out of data, please reset!"
             return None
 
-        control, update_result = self.c.observe_and_control(observation=observation, last_reward=overall_reward)
+        control, update_result = self.c.observe_and_control(observation=observation, last_reward=system_reward)
         print "Control: {}, Agent update: {}".format(control, update_result)
         cost, reward = self.control_and_reward_(control=control)
         print "Cost: {}, Reward: {}".format(cost, reward)

@@ -98,3 +98,14 @@ class AnealMixin(object):
                 self.step_ptr += 1
             self.step_counter += 1
         return super(AnealMixin, self).observe_and_act(observation, last_reward)
+
+class LossAnealMixin(object):
+    def __init__(self, scale=1, **kwargs):
+        self.SCALE = scale
+        super(LossAnealMixin, self).__init__(**kwargs)
+
+    def observe_and_act(self, observation, last_reward=None):
+        action, update_result = super(LossAnealMixin, self).observe_and_act(observation, last_reward)
+        if update_result is not None:
+            self.EPSILON = max(min(update_result/self.SCALE, 1), 0)
+        return action, update_result

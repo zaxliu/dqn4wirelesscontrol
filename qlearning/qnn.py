@@ -30,7 +30,7 @@ class QAgentNN(QAgent):
     def __init__(self, dim_state, range_state,  # basics
                  f_build_net=None, freeze_period=1,  # network
                  batch_size=100, learning_rate=0.01, momentum=0.9,  update_period=1,  # training
-                 reward_scaling=1, reward_scaling_update='fixed',  # reward
+                 reward_scaling=1, reward_scaling_update='fixed',  rs_period=1, # reward
                  memory_size=500, num_buffer=1,  # memory
                  **kwargs):
         """Initialize NN-based Q Agent
@@ -71,24 +71,28 @@ class QAgentNN(QAgent):
         self.UPDATE_PERIOD = update_period
         self.REWARD_SCALING = reward_scaling
         self.REWARD_SCALING_UPDATE = reward_scaling_update
+        self.RS_PERIOD = rs_period
         # set q table as a NN
         if not f_build_net:
             f_build_net = QAgentNN.build_net_
         self.qnn = f_build_net(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
         self.qnn_target = f_build_net(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
-        self.fun_train_qnn, self.fun_clone_target, self.fun_q_lookup, self.fun_rs_lookup = self.init_fun_(
-            dim_state=self.DIM_STATE, batch_size=self.BATCH_SIZE, gamma=self.GAMMA, learning_rate=self.LEARNING_RATE,
-            momentum=self.MOMENTUM, reward_scaling=self.REWARD_SCALING, reward_scaling_update=self.REWARD_SCALING_UPDATE
-        )
+        self.fun_train_qnn, self.fun_adapt_rs, self.fun_clone_target, self.fun_q_lookup, self.fun_rs_lookup = \
+            self.init_fun_(
+                dim_state=self.DIM_STATE, batch_size=self.BATCH_SIZE, gamma=self.GAMMA, learning_rate=self.LEARNING_RATE,
+                momentum=self.MOMENTUM, reward_scaling=self.REWARD_SCALING, reward_scaling_update=self.REWARD_SCALING_UPDATE
+            )
         self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(self.ACTIONS), num_buffer)
-        self.freeze_counter = 0
-        self.update_counter = 0
+        self.freeze_counter = self.FREEZE_PERIOD - 1
+        self.update_counter = self.UPDATE_PERIOD - 1
+        self.rs_counter = self.RS_PERIOD - 1
 
     def reset(self, foget_table=False, new_table=None, foget_memory=False):
         self.last_state = None
         self.last_action = None
-        self.freeze_counter = 0
-        self.update_counter = 0
+        self.freeze_counter = self.FREEZE_PERIOD - 1
+        self.update_counter = self.UPDATE_PERIOD - 1
+        self.rs_counter = self.RS_PERIOD - 1
         if foget_table:
             if isinstance(new_table, lasagne.layers.Layer):
                 self.q_table = new_table
@@ -147,7 +151,9 @@ class QAgentNN(QAgent):
 
             if self.verbose > 0:
                 print "  QAgentNN: ",
-                print "update counter {}, freeze counter {}.".format(self.update_counter, self.freeze_counter)
+                # print "update counter {}, freeze counter {}.".format(self.update_counter, self.freeze_counter)
+                print "update counter {}, freeze counter {}, rs counter {}.".format(
+                    self.update_counter, self.freeze_counter, self.rs_counter)
 
             if self.update_counter == 0:
                 last_states, last_actions, last_rewards, states = self.replay_memory.sample_batch()
@@ -166,8 +172,6 @@ class QAgentNN(QAgent):
             else:
                 self.update_counter -= 1
 
-
-
             return loss
 
     def act_(self, state):
@@ -175,13 +179,25 @@ class QAgentNN(QAgent):
         return super(QAgentNN, self).act_(state if self.is_memory_filled() else None)
 
     def update_table_(self, last_state, last_action, reward, current_state):
-        loss = self.fun_train_qnn(self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state))
-        self.REWARD_SCALING = self.fun_rs_lookup()
+        loss = self.fun_train_qnn(
+            self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state)
+        )
+
         if self.freeze_counter == 0:
             self.fun_clone_target()
             self.freeze_counter = self.FREEZE_PERIOD - 1
         else:
             self.freeze_counter -= 1
+        if self.REWARD_SCALING_UPDATE=='adaptive':
+            if self.rs_counter == 0:
+                loss = self.fun_adapt_rs(
+                    self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state)
+                )
+                self.rs_counter = self.RS_PERIOD - 1
+            else:
+                self.rs_counter -= 1
+
+        self.REWARD_SCALING = self.fun_rs_lookup()
 
         return loss
 
@@ -240,21 +256,24 @@ class QAgentNN(QAgent):
         predict_next_q = lasagne.layers.get_output(layer_or_layers=self.qnn_target, inputs=new_states)
         target_q = rewards/rs + gamma*T.max(predict_next_q, axis=1)
 
+        # penalty
+        singularity = 1+1e-3
+        penalty = T.mean(
+            1/T.pow(predict_q[T.arange(batch_size), actions]-singularity, 2) +
+            1/T.pow(predict_q[T.arange(batch_size), actions]+singularity, 2) - 2)
+
+
         # outputs
-        loss = T.mean((predict_q[T.arange(batch_size), actions] - target_q)**2)
+        loss = T.mean((predict_q[T.arange(batch_size), actions] - target_q)**2) + (1e-5)*penalty
 
         # weight update formulas (mini-batch SGD with momentum)
         params = lasagne.layers.get_all_params(self.qnn, trainable=True)
-        if reward_scaling_update == 'fixed':
-            pass
-        elif reward_scaling_update == 'adaptive':
-            params.append(rs)  # also update rs
-        else:
-            raise ValueError('reward_scaling_update {} not understood!'.format(reward_scaling_update))
         updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=learning_rate, momentum=momentum)
+        updates_rs = lasagne.updates.nesterov_momentum(loss, [rs], learning_rate=learning_rate, momentum=momentum)
 
         # functions
         fun_train_qnn = theano.function([old_states, actions, rewards, new_states], loss, updates=updates, allow_input_downcast=True)
+        fun_adapt_rs = theano.function([old_states, actions, rewards, new_states], loss, updates=updates_rs, allow_input_downcast=True)
 
         def fun_clone_target():
             lasagne.layers.helper.set_all_param_values(
@@ -265,7 +284,7 @@ class QAgentNN(QAgent):
         fun_q_lookup = theano.function([old_states], predict_q, allow_input_downcast=True)
         fun_rs_lookup = rs.get_value
 
-        return fun_train_qnn, fun_clone_target, fun_q_lookup, fun_rs_lookup
+        return fun_train_qnn, fun_adapt_rs, fun_clone_target, fun_q_lookup, fun_rs_lookup
 
     class ReplayMemory(object):
         """Replay memory
@@ -317,10 +336,11 @@ class QAgentNN(QAgent):
 if __name__ == '__main__':
     maze = SimpleMaze()
     agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 3),(0, 4)),),), actions=maze.ACTIONS,
-                     learning_rate=0.01, reward_scaling=100.0, reward_scaling_update='fixed',
+                     learning_rate=0.01,
+                     reward_scaling=100.0, reward_scaling_update='adaptive', rs_period=2,
                      batch_size=100, update_period=10,
                      freeze_period=2, memory_size=1000,
-                     alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02, verbose=0)
+                     alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02, verbose=2)
     print "Maze and agent initialized!"
 
     # logging
