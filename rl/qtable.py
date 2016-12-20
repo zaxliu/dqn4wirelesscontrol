@@ -146,6 +146,31 @@ class QAgent(object):
         return [self.q_table[(state, a)] if (state, a) in self.q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
 
 
+class QModel(object):
+    def __init__():
+
+    def observe_and_act():
+        self._fit_model()
+
+    def reset():
+
+    def _fit_model():
+        """Fit model parameters using samples."""
+
+    def _sample_model():
+        """Sample transitions from fitted model."""
+
+    def _reinforce():
+
+    def _act():
+
+    def _update_table_sample():
+
+    def _update_table_model():
+
+    def _lookup_table():
+
+    
 if __name__ == "__main__":
     maze = SimpleMaze()
     agent = QAgent(actions=maze.ACTIONS, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
