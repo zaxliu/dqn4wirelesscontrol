@@ -45,6 +45,7 @@ class QAgent(object):
         self.verbose = verbose
 
         # dynamic attributes
+        self.last_observation = None
         self.last_state = None
         self.last_action = None
         self.q_table = {}
@@ -57,24 +58,37 @@ class QAgent(object):
         The internalization of observation is done by the transition_() method. This method is expected to be materialized
         in the child classes. If not, the state will simply be the current observation.
         """
+        # Improve model based on current observation
+        try:
+            self.model.improve(last_observation=self.last_observation,
+                               last_action=self.last_action,
+                               last_reward=last_reward,
+                               observation=observation)
+        except AttributeError:
+            pass
+            # TODO: Verbose information?
+
         # Internalize observation and last_reward
         try:  # update agent state if a transition_() method is provided
             state = self.transition_(observation=observation, last_reward=last_reward)
         except AttributeError:  # otherwise use observation as agent state
             state = observation
 
-        # Improve agent given current state and last_reward
+
+        # Improve value/policy given current state and last_reward (optionally model)
         update_result = self.reinforce_(state=state, last_reward=last_reward)
 
         # Choose action based on current state
         action = self.act_(state=state)
 
         # Update
+        self.last_observation = observation
         self.last_state = state
         self.last_action = action
         return action, update_result
 
     def reset(self, foget_table=False):
+        self.last_observation = None
         self.last_state = None
         self.last_action = None
         if foget_table:
@@ -103,16 +117,18 @@ class QAgent(object):
                                                        if (last_state, last_action) in self.q_table else self.DEFAULT_QVAL)
         return None
 
-    def act_(self, state):
-        """Choose an action based on current state.
+    def act_(self, state, epsilon=None):
+        """Choose an action based on current state. Support epsilon-greedy and soft_probability exploration strategies. 
         """
+        # if state cannot be internalized as state, random act
         if state is None:
-            idx_action = randint(0, len(self.ACTIONS))  # if state cannot be internalized as state, random act
+            idx_action = randint(0, len(self.ACTIONS))
             if self.verbose > 0:
                 print "  QAgent: ",
                 print "randomly choose action {} (None state).".format(self.ACTIONS[idx_action])
+        # random explore with "epsilon" probability. If epsilon is None use default self.EPSILON
         elif self.EXPLORE == 'epsilon':
-            if rand() < self.EPSILON:  # random exploration with "epsilon" prob.
+            if rand() < epsilon if epsilon is not None else self.EPSILON:
                 idx_action = randint(0, len(self.ACTIONS))
                 if self.verbose > 0:
                     print "  QAgent: ",
@@ -127,6 +143,7 @@ class QAgent(object):
                     print "choose best q among {} (Epsilon).".format(
                         {self.ACTIONS[i]: q_vals[i] for i in range(len(self.ACTIONS))}
                     )
+        # soft probability
         elif self.EXPLORE == 'soft_probability':
                 q_vals = self.lookup_table_(state)  # state = internal_state
                 exp_q_vals = exp(q_vals)
@@ -144,31 +161,6 @@ class QAgent(object):
         if not isinstance(state, Hashable):
             state = tuple(state.ravel())
         return [self.q_table[(state, a)] if (state, a) in self.q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
-
-
-class QModel(object):
-    def __init__():
-
-    def observe_and_act():
-        self._fit_model()
-
-    def reset():
-
-    def _fit_model():
-        """Fit model parameters using samples."""
-
-    def _sample_model():
-        """Sample transitions from fitted model."""
-
-    def _reinforce():
-
-    def _act():
-
-    def _update_table_sample():
-
-    def _update_table_model():
-
-    def _lookup_table():
 
     
 if __name__ == "__main__":
