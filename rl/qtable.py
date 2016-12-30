@@ -3,25 +3,23 @@ from collections import deque, Hashable
 from numpy import max, exp
 from numpy.random import rand, randint, multinomial
 
-from qlearning.simple_envs import SimpleMaze
-
 
 class QAgent(object):
     """Table-based Q Learning Agent
-    A table-based Q learning agent. Updates table with canonical Bellman iteration method. Random exploration using
-    epsilon- or soft-probability strategy.
-
-    Train the agent with QAgent.observer_and_act(). Use the current observation and the reward from last action. Reset
-    agent state with QAgent.reset(), set forget_table = True to drop the learned table.
+    A table-based Q learning agent. Q function is represented with a look-up table. Updates value function with
+    Bellman iteration. Support random exploration using epsilon- or soft-probability strategy.
     """
-    def __init__(self, actions=None, alpha=1.0, gamma=0.5, epsilon=0.02, explore_strategy='epsilon', verbose=0, **kwargs):
+    def __init__(self, actions=None,
+                 alpha=1.0, gamma=0.5,
+                 epsilon=0.02, explore_strategy='epsilon',
+                 verbose=0, **kwargs):
         """
 
         Parameters
         ----------
         actions : Legitimate actions. (List or Tuple)
         alpha : Learning rate. The weight for update q value. (float, between (0, 1])
-        gamma : Reward discount factor. (float, between [0, 1))
+        gamma : Discount factor. (float, between [0, 1))
         epsilon : exploration rate for epsilon-greedy exploration. (float, [0, 1))
         explore_strategy : 'epsilon' or 'soft_probability'
         verbose : verbosity level.
@@ -50,41 +48,45 @@ class QAgent(object):
         self.last_action = None
         self.q_table = {}
 
+        return
+
     def observe_and_act(self, observation, last_reward=None):
         """A single reinforcement learning step
-        Pass in the current observation and reward from last action. First try to internalize the observation as an
-        agent state, then reinforce the agent with current experience, finally perform action based on current experience.
+        Operational procedures:
+            1. improve environmental models.
+            2. internalize observations as agent states.
+            3. reinforce value/policy.
+            4. choose actions.
+        
+        Parameters
+        ----------
+        observation : environment observation at current step.
+        last_reward : reward for latest action. 
 
-        The internalization of observation is done by the transition_() method. This method is expected to be materialized
-        in the child classes. If not, the state will simply be the current observation.
+        Returns
+        -------
         """
+        exp_obs = (self.last_observation, self.last_action, last_reward, observation)
+
         # Improve model based on current observation
-        try:
-            self.model.improve(last_observation=self.last_observation,
-                               last_action=self.last_action,
-                               last_reward=last_reward,
-                               observation=observation)
-        except AttributeError:
-            pass
-            # TODO: Verbose information?
-
+        self.improve_model_(*exp_obs)
+        
         # Internalize observation and last_reward
-        try:  # update agent state if a transition_() method is provided
-            state = self.transition_(observation=observation, last_reward=last_reward)
-        except AttributeError:  # otherwise use observation as agent state
-            state = observation
+        state = self.transition_(*exp_obs)
 
+        exp_state = (self.last_state, self.last_action, last_reward, state)
 
-        # Improve value/policy given current state and last_reward (optionally model)
-        update_result = self.reinforce_(state=state, last_reward=last_reward)
+        # Improve value/policy given current state and last_reward
+        update_result = self.reinforce_(*exp_state)
 
         # Choose action based on current state
-        action = self.act_(state=state)
+        action = self.act_(state)
 
-        # Update
+        # Update buffer
         self.last_observation = observation
         self.last_state = state
         self.last_action = action
+        
         return action, update_result
 
     def reset(self, foget_table=False):
@@ -94,31 +96,45 @@ class QAgent(object):
         if foget_table:
             self.q_table = {}
 
-    def reinforce_(self, state, last_reward):
-        """ Improve agent based on current experience (last_state, last_action, last_reward, state)
+        return
+
+    def improve_model_(self, last_observation, last_action, last_reward, observation):
+        return
+
+    def transition_(self, last_observation, last_action, last_reward, observation):
+        return observation
+
+    def reinforce_(self, last_state, last_action, last_reward, state):
+        """ Improve value function
         """
-        last_state = self.last_state
-        last_action = self.last_action
         if last_state is None or state is None or last_reward is None:
             update_result = None
         else:
             update_result = self.update_table_(last_state, last_action, last_reward, state)
+        
         return update_result
 
-    def update_table_(self, last_state, last_action, reward, current_state):
-        """Update Q table using Bellman iteration
+    def update_table_(self, last_state, last_action, last_reward, state):
+        """Update Q function
+        Use off-policy Bellman iteration: 
+            Q_new(s, a) = (1-alpha)*Q_old(s, a) + alpha*(R + gamma*max_a'{Q_old(s', a')})
         """
-        best_qval = max(self.lookup_table_(current_state))
+        best_qval = max(self.lookup_table_(state))
+        delta_q = last_reward + self.GAMMA * best_qval
+
         if not isinstance(last_state, Hashable):
-            last_state = tuple(last_state.ravel())  # passed in numpy array
-        delta_q = reward + self.GAMMA * best_qval
+            last_state = tuple(last_state.ravel())  # TODO: assume should be numpy array
+       
         self.q_table[(last_state, last_action)] = \
-            self.ALPHA * delta_q + (1 - self.ALPHA) * (self.q_table[(last_state, last_action)]
-                                                       if (last_state, last_action) in self.q_table else self.DEFAULT_QVAL)
+            (1-self.ALPHA)*(self.q_table[(last_state, last_action)] \
+            if (last_state, last_action) in self.q_table else self.DEFAULT_QVAL) + self.ALPHA*delta_q        
+        
         return None
 
     def act_(self, state, epsilon=None):
-        """Choose an action based on current state. Support epsilon-greedy and soft_probability exploration strategies. 
+        """Choose an action based on current state.
+        
+        Support epsilon-greedy and soft_probability exploration strategies. 
         """
         # if state cannot be internalized as state, random act
         if state is None:
@@ -126,9 +142,10 @@ class QAgent(object):
             if self.verbose > 0:
                 print "  QAgent: ",
                 print "randomly choose action {} (None state).".format(self.ACTIONS[idx_action])
+        
         # random explore with "epsilon" probability. If epsilon is None use default self.EPSILON
         elif self.EXPLORE == 'epsilon':
-            if rand() < epsilon if epsilon is not None else self.EPSILON:
+            if rand() < (epsilon if epsilon is not None else self.EPSILON):
                 idx_action = randint(0, len(self.ACTIONS))
                 if self.verbose > 0:
                     print "  QAgent: ",
@@ -143,6 +160,7 @@ class QAgent(object):
                     print "choose best q among {} (Epsilon).".format(
                         {self.ACTIONS[i]: q_vals[i] for i in range(len(self.ACTIONS))}
                     )
+        
         # soft probability
         elif self.EXPLORE == 'soft_probability':
                 q_vals = self.lookup_table_(state)  # state = internal_state
@@ -160,47 +178,7 @@ class QAgent(object):
         """
         if not isinstance(state, Hashable):
             state = tuple(state.ravel())
+        
         return [self.q_table[(state, a)] if (state, a) in self.q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
-
     
-if __name__ == "__main__":
-    maze = SimpleMaze()
-    agent = QAgent(actions=maze.ACTIONS, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
-    # logging
-    path = deque()  # path in this episode
-    episode_reward_rates = []
-    num_episodes = 0
-    cum_reward = 0
-    cum_steps = 0
-
-    # repeatedly run episodes
-    while True:
-        # initialization
-        maze.reset()
-        agent.reset(foget_table=False)
-        action, _ = agent.observe_and_act(observation=None, last_reward=None)  # get and random action
-        path.clear()
-        episode_reward = 0
-        episode_steps = 0
-
-        # interact and reinforce repeatedly
-        while not maze.isfinished():
-            new_observation, reward = maze.interact(action)
-            action, _ = agent.observe_and_act(observation=new_observation, last_reward=reward)
-            path.append(new_observation)
-            episode_reward += reward
-            episode_steps += 1
-        print len(path),
-
-        cum_steps += episode_steps
-        cum_reward += episode_reward
-        num_episodes += 1
-        episode_reward_rates.append(episode_reward / episode_steps)
-        if num_episodes % 100 == 0:
-            print num_episodes, len(agent.q_table), cum_reward, cum_steps, 1.0 * cum_reward / cum_steps#, path
-            cum_reward = 0
-            cum_steps = 0
-    win = 50
-    # s = pd.rolling_mean(pd.Series([0]*win+episode_reward_rates), window=win, min_periods=1)
-    # s.plot()
-    # plt.show()
+    
