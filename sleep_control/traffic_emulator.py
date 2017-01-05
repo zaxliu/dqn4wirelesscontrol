@@ -63,7 +63,7 @@ class TrafficEmulator(object):
             print "New TrafficEmulator with parameters:\n  " \
                   "head={}\n  tail={}\n  time_step={}\n  epoch={}\n  verbose={}".format(
                     self.head_datetime, self.tail_datetime, self.time_step, self.epoch, self.verbose)
-
+        return
     # Public Methods
     def generate_traffic(self):
         """Get traffic for this epoch, set epoch=None if run out of data
@@ -429,7 +429,7 @@ class PoissonEmulator(TrafficEmulator):
 
         idx = self.epoch
         # 'bytes_per_request_domain' column
-        n_requests = np.random.poisson(self.MU)
+        n_requests = self.emit_requests_()
         bytes_request_domain = {'fake.com': [-1]*n_requests}
         incoming_sessions.set_value(idx, 'bytes_per_request_domain', json.dumps(bytes_request_domain))
         # 'pendingReqID_per_domain' column
@@ -471,4 +471,30 @@ class PoissonEmulator(TrafficEmulator):
                            for epoch in pendingReqID_epoch_domain[domain]])
         num_waiting = sum([len(waitingReqID_domain[domain]) for domain in waitingReqID_domain])
         return num_pending==0 and num_waiting==0
+
+    def emit_requests_(self):
+        return np.random.poisson(self.MU)
+
+
+class MMPPEmulator(PoissonEmulator):
+    def __init__(self, traffic_model, **kwargs):
+        super(MMPPEmulator, self).__init__(**kwargs)
+        self.traffic_model = traffic_model  # assume model properly initialized
+        self.BUFFER_SIZE = 1000
+        self.buffer = None
+        self.counter = 0
+
+    def emit_requests_(self):
+        if self.buffer is None or self.counter >= self.BUFFER_SIZE:
+            X, Z = self.traffic_model.sample(self.BUFFER_SIZE)
+            self.traffic_model.startprob_ *= 0.0
+            self.traffic_model.startprob_[Z[-1]] = 1.0
+            self.buffer = X.squeeze()
+            self.counter = 0
+        n_requests = self.buffer[self.counter]
+        self.counter += 1
+        
+        return n_requests
+
+
 

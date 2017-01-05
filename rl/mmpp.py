@@ -8,6 +8,7 @@ from scipy.stats import poisson
 from sklearn.utils import check_random_state
 
 from hmmlearn.base import _BaseHMM
+from hmmlearn.utils import normalize
 
 __all__ = ["MMPP"]
 
@@ -51,8 +52,7 @@ class MMPP(_BaseHMM):
     def _compute_log_likelihood(self, X):
         # Utilize the broadcasting feature of poisson.pmf
         return np.log(
-                   poisson.pmf(np.concatenate(X)[:, None],
-                               self.emissionrates_[None, :])
+                   poisson.pmf(np.concatenate(X)[:, None], self.emissionrates_[None, :])
                )
 
     def _generate_sample_from_state(self, state, random_state=None):
@@ -75,7 +75,14 @@ class MMPP(_BaseHMM):
         super(MMPP, self)._do_mstep(stats)
         if 'e' in self.params:
             self.emissionrates_ = stats['obs'] \
-                                  / np.sum(stats['trans'], axis=1)
+               / np.sum(stats['trans'], axis=1)
+        # # check for NaNs
+        # np.nan_to_num(self.startprob_)
+        # normalize(self.startprob_)
+        # np.nan_to_num(self.transmat_)
+        # normalize(self.transmat_)
+        # np.nan_to_num(self.emissionrates_)
+        # normalize(self.emissionrates_)
 
     def _check_input_symbols(self, X):
         symbols = np.concatenate(X)

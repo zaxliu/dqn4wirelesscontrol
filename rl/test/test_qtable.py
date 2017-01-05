@@ -1,10 +1,10 @@
 import sys
-sys.path.append('../../')
+sys.path.append('../')
 
 from collections import deque
 
-from rl.qtable import QAgent
-from rl.simple_envs import SimpleMaze
+from qtable import QAgent
+from simple_envs import SimpleMaze
 
 maze = SimpleMaze()
 agent = QAgent(actions=maze.ACTIONS, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.01)
@@ -40,6 +40,6 @@ while True:
     num_episodes += 1
     episode_reward_rates.append(episode_reward / episode_steps)
     if num_episodes % 10 == 0:
-        print num_episodes, len(agent.q_table), cum_reward, cum_steps, 1.0 * cum_reward / cum_steps#, path
+        print num_episodes, len(agent._QAgent__q_table), cum_reward, cum_steps, 1.0 * cum_reward / cum_steps#, path
         cum_reward = 0
         cum_steps = 0

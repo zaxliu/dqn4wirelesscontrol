@@ -9,23 +9,26 @@ import theano.tensor as T
 import lasagne
 
 from qtable import QAgent
-from qlearning.simple_envs import SimpleMaze
+from simple_envs import SimpleMaze
 
 
 class QAgentNN(QAgent):
-    """ Neuron-network-based Q Learning Agent
-    This agent replaces the Q table in a canonical q agent with a neuron network. Its inputs are the observed state and
-    its outputs are the q values for each action. The training of the network is performed periodically with randomly
-    selected batch of past experiences. This technique is also known as Experience Replay. The loss function is defined
-    following the Bellman iteration equation.
+    """ Neural-network-based Q Learning Agent
+    This agent replaces the Q table in a canonical q agent with a neural net. Its inputs are the observed state and
+    its outputs are the q values for each action.
+    
+    The training of the network is performed periodically with randomly selected batch of past experiences. This 
+    technique is also known as Experience Replay. The loss function is defined following the Bellman iteration 
+    equation.
 
     Different from the techniques presented in the original DeepMind paper. We apply re-scaling on the reward to make it
     fit better into the value range of output layer (e.g. (-1, +1)). This can be helpful for scenarios in which the value
     of reward has a large dynamic range. Another modification is that we employ separate buffers in the replay memory
     for different actions. This can speed-up convergence in non-stationary and highly-action-skewed cases.
 
-    QAgentNN reuses much of the interface methods of QAgent. The reset(), reinforce_(), transition_(), update_table_(),
-    lookup_table_(), and act_() methods are redefined to overwrite/encapsulate the original functionality.
+    QAgentNN reuses much of the interface methods of QAgent. The reset(), imporove_translate_(), reinforce_(), 
+    update_table_(), lookup_table_(), and act_() methods are redefined to overwrite/encapsulate the original 
+    functionality.
     """
     def __init__(self, dim_state, range_state,  # basics
                  f_build_net=None, freeze_period=1,  # network
@@ -63,6 +66,7 @@ class QAgentNN(QAgent):
         else:
             self.STATE_MEAN = np.zeros(self.DIM_STATE)
             self.STATE_MAG = np.ones(self.DIM_STATE)
+        
         self.FREEZE_PERIOD = freeze_period
         self.MEMORY_SIZE = memory_size
         self.BATCH_SIZE = batch_size
@@ -72,55 +76,61 @@ class QAgentNN(QAgent):
         self.REWARD_SCALING = reward_scaling
         self.REWARD_SCALING_UPDATE = reward_scaling_update
         self.RS_PERIOD = rs_period
+        self.fun_build_net = f_build_net if f_build_net is not None else QAgentNN.build_net_
+
         # set q table as a NN
-        if not f_build_net:
-            f_build_net = QAgentNN.build_net_
-        self.qnn = f_build_net(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
-        self.qnn_target = f_build_net(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
         self.fun_train_qnn, self.fun_adapt_rs, self.fun_clone_target, self.fun_q_lookup, self.fun_rs_lookup = \
-            self.init_fun_(
-                dim_state=self.DIM_STATE, batch_size=self.BATCH_SIZE, gamma=self.GAMMA, learning_rate=self.LEARNING_RATE,
-                momentum=self.MOMENTUM, reward_scaling=self.REWARD_SCALING, reward_scaling_update=self.REWARD_SCALING_UPDATE
-            )
+            self.init_fun_(self.fun_build_net, 
+                           self.DIM_STATE, self.BATCH_SIZE, self.GAMMA,
+                           self.LEARNING_RATE, self.MOMENTUM,
+                           self.REWARD_SCALING, self.REWARD_SCALING_UPDATE)
+        
         self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(self.ACTIONS), num_buffer)
         self.freeze_counter = self.FREEZE_PERIOD - 1
         self.update_counter = self.UPDATE_PERIOD - 1
         self.rs_counter = self.RS_PERIOD - 1
 
-    def reset(self, foget_table=False, new_table=None, foget_memory=False):
-        self.last_state = None
-        self.last_action = None
+    def reset(self, foget_table=False, foget_memory=False, **kwargs):
         self.freeze_counter = self.FREEZE_PERIOD - 1
         self.update_counter = self.UPDATE_PERIOD - 1
         self.rs_counter = self.RS_PERIOD - 1
+        
         if foget_table:
-            if isinstance(new_table, lasagne.layers.Layer):
-                self.q_table = new_table
-            else:
-                raise ValueError("Please pass in a NN as new table")
+            self.fun_train_qnn, self.fun_adapt_rs, self.fun_clone_target, self.fun_q_lookup, self.fun_rs_lookup = \
+            self.init_fun_(
+                self.fun_build_net, 
+                self.DIM_STATE, self.BATCH_SIZE, self.GAMMA, self.LEARNING_RATE, self.MOMENTUM,
+                self.REWARD_SCALING, self.REWARD_SCALING_UPDATE
+            )
+        
         if foget_memory:
             self.ReplayMemory.reset()
+       
+        kwargs['foget_table'] = foget_table
+        super(QAgentNN, self).reset(**kwargs)
 
-    def transition_(self, observation, last_reward):
+        return
+
+    def improve_translate_(self, last_observation, last_action, last_reward, observation):
         """Update replay memory with new experience
-        Consider the "memory state" as part of the agent state
+        Treat the memory as a bootstraped environment model.
+        Pass over observation as state.
         """
-        state = observation
-        last_state = self.last_state
-        last_action = self.last_action
-
-        # update current experience into replay memory
-        if last_state is not None and state is not None:
+        # store latest experience into replay memory
+        if last_observation is not None and observation is not None:
             idx_action = self.ACTIONS.index(last_action)
-            self.replay_memory.update(last_state, idx_action, last_reward, state)
-        return state
+            self.replay_memory.update(last_observation, idx_action, last_reward, observation)
+        
+        # try invoking super-class
+        return super(QAgentNN, self).improve_translate_(last_observation, last_action, last_reward, observation)
 
-    def reinforce_(self, state, last_reward):
+    def reinforce_(self, last_state, last_action, last_reward, state):
         """Train the network periodically with past experiences
-        Periodically train the network with random samples from the replay memory. Freeze the network parameters when in
-        non-training epochs.
+        Periodically train the network with random samples from the replay memory. Freeze the network parameters 
+        during non-training epochs.
 
-        Will not update the network if the state or reward passes in is None or the replay memory is yet to be filled up.
+        Will not update the network if the state or reward passes in is None or the replay memory is yet to be 
+        filled up.
 
         Parameters
         ----------
@@ -174,9 +184,9 @@ class QAgentNN(QAgent):
 
             return loss
 
-    def act_(self, state):
+    def act_(self, state, epsilon=None):
         # Escalate to QAgent.act_(). Pass None state if memory is not full to invoke random action.
-        return super(QAgentNN, self).act_(state if self.is_memory_filled() else None)
+        return super(QAgentNN, self).act_(state if self.is_memory_filled() else None, epsilon)
 
     def update_table_(self, last_state, last_action, reward, current_state):
         loss = self.fun_train_qnn(
@@ -230,9 +240,12 @@ class QAgentNN(QAgent):
             nonlinearity=lasagne.nonlinearities.tanh)
         return l_out
 
-    def init_fun_(self, dim_state, batch_size, gamma, learning_rate, momentum, reward_scaling, reward_scaling_update):
+    def init_fun_(self, f_build_net, 
+                  dim_state, batch_size, gamma, 
+                  learning_rate, momentum, 
+                  reward_scaling, reward_scaling_update):
         """Define and compile function to train and evaluate network
-        :param net: Lasagne output layer
+        :param f_build_net: function to build dqn
         :param dim_state: dimensions of a single state tensor
         :param batch_size:
         :param gamma: future reward discount factor
@@ -242,6 +255,9 @@ class QAgentNN(QAgent):
         :param reward_scaling_update:
         :return:
         """
+        self.qnn = f_build_net(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
+        self.qnn_target = f_build_net(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
+
         if len(dim_state) != 3:
             raise ValueError("We only support 3 dimensional states.")
 
@@ -331,62 +347,4 @@ class QAgentNN(QAgent):
         def reset(self):
             self.top = [-1]*self.NUM_BUFFERS
             self.filled = [False]*self.NUM_BUFFERS
-
-
-if __name__ == '__main__':
-    maze = SimpleMaze()
-    agent = QAgentNN(dim_state=(1, 1, 2), range_state=((((0, 3),(0, 4)),),), actions=maze.ACTIONS,
-                     learning_rate=0.01,
-                     reward_scaling=100.0, reward_scaling_update='adaptive', rs_period=2,
-                     batch_size=100, update_period=10,
-                     freeze_period=2, memory_size=1000,
-                     alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.02, verbose=2)
-    print "Maze and agent initialized!"
-
-    # logging
-    path = deque()  # path in this episode
-    episode_reward_rates = []
-    num_episodes = 0
-    cum_reward = 0
-    cum_steps = 0
-
-    # repeatedly run episodes
-    while True:
-        maze.reset()
-        agent.reset()
-        action, _ = agent.observe_and_act(observation=None, last_reward=None)  # get and random action
-        path.clear()
-        episode_reward = 0
-        episode_steps = 0
-        episode_loss = 0
-
-        # print '(',
-        # interact and reinforce repeatedly
-        while not maze.isfinished():
-            new_observation, reward = maze.interact(action)
-            action, loss = agent.observe_and_act(observation=new_observation, last_reward=reward)
-            # print new_observation,
-            # print action,
-            # print agent.fun_rs_lookup(),
-            path.append(new_observation)
-            episode_reward += reward
-            episode_steps += 1
-            episode_loss += loss if loss else 0
-        # print '):',
-        print len(path),
-        # print "{:.3f}".format(episode_loss),
-        # print ""
-        cum_steps += episode_steps
-        cum_reward += episode_reward
-        num_episodes += 1
-        episode_reward_rates.append(episode_reward / episode_steps)
-        if num_episodes % 100 == 0:
-            print ""
-            print num_episodes, cum_reward, cum_steps, 1.0 * cum_reward / cum_steps #, path
-            cum_reward = 0
-            cum_steps = 0
-    win = 50
-    # s = pd.rolling_mean(pd.Series([0]*win+episode_reward_rates), window=win, min_periods=1)
-    # s.plot()
-    # plt.show()
 

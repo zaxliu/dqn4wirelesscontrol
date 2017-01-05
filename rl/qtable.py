@@ -29,11 +29,7 @@ class QAgent(object):
         -------
 
         """
-        super(QAgent, self).__init__(**kwargs)
-
         # static attributes
-        if not actions:
-            raise ValueError("Passed in None action list.")
         self.ACTIONS = actions    # legitimate actions
         self.ALPHA = alpha        # learning rate
         self.GAMMA = gamma        # discount factor
@@ -42,21 +38,20 @@ class QAgent(object):
         self.EXPLORE = explore_strategy
         self.verbose = verbose
 
-        # dynamic attributes
-        self.last_observation = None
-        self.last_state = None
-        self.last_action = None
-        self.q_table = {}
-
+        # private dynamic attributes
+        self.__last_observation = None
+        self.__last_state = None
+        self.__last_action = None
+        self.__q_table = {}
+        
         return
 
     def observe_and_act(self, observation, last_reward=None):
         """A single reinforcement learning step
         Operational procedures:
-            1. improve environmental models.
-            2. internalize observations as agent states.
-            3. reinforce value/policy.
-            4. choose actions.
+            1. improve environment model(s) and translate observation to agent state.
+            2. reinforce value/policy.
+            3. choose actions.
         
         Parameters
         ----------
@@ -66,42 +61,32 @@ class QAgent(object):
         Returns
         -------
         """
-        exp_obs = (self.last_observation, self.last_action, last_reward, observation)
-
-        # Improve model based on current observation
-        self.improve_model_(*exp_obs)
-        
-        # Internalize observation and last_reward
-        state = self.transition_(*exp_obs)
-
-        exp_state = (self.last_state, self.last_action, last_reward, state)
-
+        exp_obs = (self.__last_observation, self.__last_action, last_reward, observation)
+        # Improve model and translate observation to agent state
+        state = self.improve_translate_(*exp_obs)
+        exp_state = (self.__last_state, self.__last_action, last_reward, state)
         # Improve value/policy given current state and last_reward
         update_result = self.reinforce_(*exp_state)
-
         # Choose action based on current state
         action = self.act_(state)
-
+        
         # Update buffer
-        self.last_observation = observation
-        self.last_state = state
-        self.last_action = action
+        self.__last_observation = observation
+        self.__last_state = state
+        self.__last_action = action
         
         return action, update_result
 
     def reset(self, foget_table=False):
-        self.last_observation = None
-        self.last_state = None
-        self.last_action = None
+        self.__last_observation = None
+        self.__last_state = None
+        self.__last_action = None
         if foget_table:
-            self.q_table = {}
+            self.__q_table = {}
 
         return
 
-    def improve_model_(self, last_observation, last_action, last_reward, observation):
-        return
-
-    def transition_(self, last_observation, last_action, last_reward, observation):
+    def improve_translate_(self, last_observation, last_action, last_reward, observation):
         return observation
 
     def reinforce_(self, last_state, last_action, last_reward, state):
@@ -125,9 +110,9 @@ class QAgent(object):
         if not isinstance(last_state, Hashable):
             last_state = tuple(last_state.ravel())  # TODO: assume should be numpy array
        
-        self.q_table[(last_state, last_action)] = \
-            (1-self.ALPHA)*(self.q_table[(last_state, last_action)] \
-            if (last_state, last_action) in self.q_table else self.DEFAULT_QVAL) + self.ALPHA*delta_q        
+        self.__q_table[(last_state, last_action)] = \
+            (1-self.ALPHA)*(self.__q_table[(last_state, last_action)] \
+            if (last_state, last_action) in self.__q_table else self.DEFAULT_QVAL) + self.ALPHA*delta_q        
         
         return None
 
@@ -179,6 +164,6 @@ class QAgent(object):
         if not isinstance(state, Hashable):
             state = tuple(state.ravel())
         
-        return [self.q_table[(state, a)] if (state, a) in self.q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
+        return [self.__q_table[(state, a)] if (state, a) in self.__q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
     
     

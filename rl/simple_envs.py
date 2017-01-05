@@ -1,12 +1,14 @@
-from numpy.random.mtrand import randint
+from numpy.random import randint
 
 
 class SimpleMaze:
     """A simple maze game with a single goal state
-    This is a simple maze game for testing q-learning agents. The game is played on a two-dimensional ground, meaning
-    the agent can move up, down, left, or right to move around. One of the grids is the goal state. Each time the agent
-    hits the goal state, a game round is terminated. The grids by the boundary are considered "walls". The agent can
-    choose to move towards the wall, however will only be hit back to remain at the same state.
+    This is a simple maze game for testing q-learning agents. The game is
+    played on a two-dimensional ground, meaning the agent can move up, down,
+    left, or right to move around. One of the grids is the goal state. Each
+    time the agent hits the goal state, a game round is terminated. The grids
+    by the boundary are considered "walls". The agent can choose to move
+    towards the wall, however will only be hit back to remain at the same state.
     """
     def __init__(self, dims=None, goal_state=None, goal_reward=100, wall_reward=0, null_reward=0):
         self.ACTIONS = ['left', 'right', 'up', 'down']  # legitimate ACTIONS

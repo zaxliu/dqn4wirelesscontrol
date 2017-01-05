@@ -3,40 +3,40 @@ sys.path.append('../')
 
 from collections import deque
 from qtable import QAgent
-from simple_envs import SimpleMaze
 from qnn_theano import QAgentNN
-from mixin import PhiMixin
+from simple_envs import SimpleMaze
+from mixin import DynaMixin
+from env_models import SimpleMazeModel
 
 
-class QAgentPhi(PhiMixin, QAgent):
+class DynaQAgent(DynaMixin, QAgent):
     def __init__(self, **kwargs):
-        super(QAgentPhi, self).__init__(**kwargs)
+        super(DynaQAgent, self).__init__(**kwargs)
 
-
-class QAgentNNPhi(PhiMixin, QAgentNN):
+class DynaQAgentNN(DynaMixin, QAgentNN):
     def __init__(self, **kwargs):
-        super(QAgentNNPhi, self).__init__(**kwargs)
-
+        super(DynaQAgentNN, self).__init__(**kwargs)
 
 # PhiMixin test
 agent_type = 'QAgent'
 maze = SimpleMaze()
+env_model = SimpleMazeModel(maze)
+num_sim = 0
 
-phi_length = 2
 if agent_type == 'QAgent':
-    agent = QAgentPhi(
-        phi_length=phi_length,
-        actions=maze.ACTIONS, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1)
+    agent = DynaQAgent(
+        env_model=env_model, num_sim=num_sim,
+        actions=maze.ACTIONS, alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1
+    )
 elif agent_type == 'QAgentNN':
-    slice_range = [(0, 3), (0, 4)] + zip([0] * len(maze.ACTIONS), [1] * len(maze.ACTIONS))
-    agent = QAgentNNPhi(
-        phi_length=phi_length,
-        dim_state=(1, phi_length, 2+len(maze.ACTIONS)),
-        range_state=[[slice_range]*phi_length],
+    agent = DynaQAgentNN(
+        env_model=env_model, num_sim=num_sim,
+        dim_state=(1, 1, 2),
+        range_state=((((0, 3),(0, 4)),),),
         actions=maze.ACTIONS,
         learning_rate=0.001, reward_scaling=100, batch_size=100,
         freeze_period=100, memory_size=1000,
-        alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1, verbose=2)
+        alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1, verbose=0)
 else:
     raise ValueError("Unrecognized agent type!")
 print "Maze and agent initialized!"
@@ -67,7 +67,7 @@ while True:
         path.append(new_observation)
         episode_reward += reward
         episode_steps += 1
-        episode_loss += loss if loss else 0
+        # episode_loss += loss if loss else 0
     # print len(path),
     # print "{:.3f}".format(episode_loss),
     # print ""
@@ -75,7 +75,7 @@ while True:
     cum_reward += episode_reward
     num_episodes += 1
     episode_reward_rates.append(episode_reward / episode_steps)
-    if num_episodes % 1000 == 0:
+    if num_episodes % 100 == 0:
         print ""
         print num_episodes, len(agent._QAgent__q_table), cum_reward, cum_steps, 1.0 * cum_reward / cum_steps, cum_steps / 1000.0 #, path
         cum_reward = 0
