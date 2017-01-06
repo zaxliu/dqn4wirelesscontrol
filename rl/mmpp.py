@@ -51,9 +51,12 @@ class MMPP(_BaseHMM):
 
     def _compute_log_likelihood(self, X):
         # Utilize the broadcasting feature of poisson.pmf
-        return np.log(
-                   poisson.pmf(np.concatenate(X)[:, None], self.emissionrates_[None, :])
-               )
+        framelogprob = np.log(poisson.pmf(np.concatenate(X)[:, None], 
+                                          self.emissionrates_[None, :]
+                              )
+                       )
+        framelogprob = np.nan_to_num(framelogprob)  # prevend -inf
+        return framelogprob
 
     def _generate_sample_from_state(self, state, random_state=None):
         return [poisson.rvs(self.emissionrates_[state])]

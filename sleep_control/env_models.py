@@ -105,7 +105,9 @@ class SJTUModel(BaseEnvModel):
 
         # Re-fit traffic model
         if len(self.traffic_window) == self.TRAFFIC_WINDOW_SIZE:
-            self.traffic_model.fit(self.traffic_window)
+            self.traffic_model.fit(
+                np.array(self.traffic_window)[:, None]
+            )
             self.adjust_traffic_model_()
 
         return
@@ -230,12 +232,12 @@ class SJTUModel(BaseEnvModel):
     def adjust_traffic_model_(self):
         """Offset model params to avoid over-/under-flow"""
         # TODO: replace NaN and show warning.
-        self.traffic_model.startprob_ = \
-            np.nan_to_num(self.traffic_model.startprob_)
-        self.traffic_model.transmat_ = \
-            np.nan_to_num(self.traffic_model.transmat_)
-        self.traffic_model.emissionrates_ = \
-            np.nan_to_num(self.traffic_model.emissionrates_)
+        # self.traffic_model.startprob_ = \
+        #     np.nan_to_num(self.traffic_model.startprob_)
+        # self.traffic_model.transmat_ = \
+        #     np.nan_to_num(self.traffic_model.transmat_)
+        # self.traffic_model.emissionrates_ = \
+        #     np.nan_to_num(self.traffic_model.emissionrates_)
 
         self.traffic_model.startprob_prior += self.ADJUST_OFFSET
         self.traffic_model.transmat_ += self.ADJUST_OFFSET
