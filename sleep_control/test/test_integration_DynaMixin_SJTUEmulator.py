@@ -46,7 +46,7 @@ print "Setting up Emulation environment..."
 
 # Parameters
 # emulator
-time_step = pd.Timedelta(seconds=30)  # emulator time step
+time_step = pd.Timedelta(minutes=30)  # emulator time step
 # agent
 actions = [(True, None), (False, 'serve_all')]
 # env Model

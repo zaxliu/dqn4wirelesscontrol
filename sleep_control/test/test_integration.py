@@ -1,13 +1,15 @@
 import sys
 sys.path.append('../../')  # add project home into search path
+
 import time
 import pandas as pd
+
 from sleep_control.integration import Emulation
 from sleep_control.traffic_emulator import TrafficEmulator
 from sleep_control.traffic_server import TrafficServer
 from sleep_control.controller import QController, DummyController
-from qlearning.qtable import QAgent
-from qlearning.qnn import QAgentNN
+from rl.qtable import QAgent
+from rl.qnn_theano import QAgentNN
 
 pd.set_option('mode.chained_assignment', None)
 

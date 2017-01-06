@@ -6,8 +6,8 @@ from sleep_control.integration import Emulation
 from sleep_control.traffic_emulator import TrafficEmulator
 from sleep_control.traffic_server import TrafficServer
 from sleep_control.controller import QController
-from qlearning.qnn import QAgentNN
-from qlearning.mixin import PhiMixin
+from rl.qnn_theano import QAgentNN
+from rl.mixin import PhiMixin
 
 
 class QAgentNNPhi(PhiMixin, QAgentNN):
