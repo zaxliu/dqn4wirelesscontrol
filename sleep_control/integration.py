@@ -20,7 +20,7 @@ class Emulation:
             system_reward = (self.last_reward - self.last_cost) if self.BETA is None \
                 else (self.BETA*self.last_reward - (1-self.BETA)*self.last_cost)
         print "Last reward: {}".format(system_reward)
-        
+
         observation = self.get_observation_()
         print "Observation: {}".format(observation)
         if observation is None:
@@ -29,7 +29,7 @@ class Emulation:
 
         control, update_result = self.c.observe_and_control(observation=observation, last_reward=system_reward)
         print "Control: {}, Agent update: {}".format(control, update_result)
-        
+
         cost, reward = self.control_and_reward_(control=control)
         print "Cost: {}, Reward: {}".format(cost, reward)
         self.last_cost = cost

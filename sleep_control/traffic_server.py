@@ -45,7 +45,7 @@ class TrafficServer:
         new_q_ob = self.observe_q_(self.q)
         self.last_traffic_ob = self.observe_traffic_(traffic_df)
         self.last_q_ob = new_q_ob
-        
+
         # Enqueue traffic
         traffic_df_cp = traffic_df.copy()
         traffic_df_cp['arriveTime_epoch'] = self.epoch
