@@ -14,41 +14,52 @@ from simple_envs import SimpleMaze
 
 class QAgentNN(QAgent):
     """ Neural-network-based Q Learning Agent
-    This agent replaces the Q table in a canonical q agent with a neural net. Its inputs are the observed state and
-    its outputs are the q values for each action.
-    
-    The training of the network is performed periodically with randomly selected batch of past experiences. This 
-    technique is also known as Experience Replay. The loss function is defined following the Bellman iteration 
-    equation.
+    This agent replaces the Q table in a canonical q agent with a neural net.
+    Its inputs are the observed state and its outputs are the q values for
+    each action.
 
-    Different from the techniques presented in the original DeepMind paper. We apply re-scaling on the reward to make it
-    fit better into the value range of output layer (e.g. (-1, +1)). This can be helpful for scenarios in which the value
-    of reward has a large dynamic range. Another modification is that we employ separate buffers in the replay memory
-    for different actions. This can speed-up convergence in non-stationary and highly-action-skewed cases.
+    The training of the network is performed periodically with randomly
+    selected batch of past experiences. This technique is also known as
+    Experience Replay. The loss function is defined following the Bellman
+    iteration equation.
 
-    QAgentNN reuses much of the interface methods of QAgent. The reset(), imporove_translate_(), reinforce_(), 
-    update_table_(), lookup_table_(), and act_() methods are redefined to overwrite/encapsulate the original 
+    Different from the techniques presented in the original DeepMind paper.
+    We apply re-scaling on the reward to make it fit better into the value
+    range of output layer (e.g. (-1, +1)). This can be helpful for scenarios
+    in which the value of reward has a large dynamic range. Another
+    modification is that we employ separate buffers in the replay memory
+    for different actions. This can speed-up convergence in non-stationary
+    and highly-action-skewed cases.
+
+    QAgentNN reuses much of the interface methods of QAgent. The reset(),
+    imporove_translate_(), reinforce_(), update_table_(), lookup_table_(),
+    and act_() methods are redefined to overwrite/encapsulate the original
     functionality.
     """
-    def __init__(self, dim_state, range_state,  # basics
-                 f_build_net=None, freeze_period=1,  # network
-                 batch_size=100, learning_rate=0.01, momentum=0.9,  update_period=1,  # training
+    def __init__(self,
+                 dim_state, range_state,                            # state
+                 f_build_net=None,                                  # network
+                 batch_size=100, learning_rate=0.01, momentum=0.9,  # SGD
+                 update_period=1, freeze_period=1,                  # schedule
                  reward_scaling=1, reward_scaling_update='fixed',  rs_period=1, # reward
-                 memory_size=500, num_buffer=1,  # memory
+                 memory_size=500, num_buffer=1,                     # memory
                  **kwargs):
         """Initialize NN-based Q Agent
 
         Parameters
         ----------
-        dim_state   : dimensions of observation. Must by in the format of (d1, d2, d3).
-        range_state : lower and upper bound of observations. Must be in the format of (d1, d2, d3, 2) following the notation of dim state.
-        net         : Lasagne output layer as the network used.
-        batch_size  : batch size for mini-batch stochastic gradient descent (SGD) training.
+        dim_state   : dimensions of observation. 3-D tensor.
+        range_state : lower and upper bound of each observation dimension.
+            4-D tensor (d1, d2, d3, 2).
+        f_build_net : Function handle for building DQN, and returns a
+            Lasagne output layer.
+        batch_size  : batch size for mini-batch SGD.
         learning_rate  : step size of a single gradient descent step.
         momentum    : faction of old weight values kept during gradient descent.
         reward_scaling : initial value for inverse reward scaling factor
         reward_scaling_update : 'fixed' & 'adaptive'
-        freeze_period  : the periodicity for training the q network.
+        update_period  : number of epochs per SGD update.
+        freeze_period  : number of SGD updates per target network sync.
         memory_size : size of replay memory (each buffer).
         num_buffer  : number of buffers used in replay memory
         kwargs      :
@@ -66,7 +77,7 @@ class QAgentNN(QAgent):
         else:
             self.STATE_MEAN = np.zeros(self.DIM_STATE)
             self.STATE_MAG = np.ones(self.DIM_STATE)
-        
+
         self.FREEZE_PERIOD = freeze_period
         self.MEMORY_SIZE = memory_size
         self.BATCH_SIZE = batch_size
@@ -80,11 +91,11 @@ class QAgentNN(QAgent):
 
         # set q table as a NN
         self.fun_train_qnn, self.fun_adapt_rs, self.fun_clone_target, self.fun_q_lookup, self.fun_rs_lookup = \
-            self.init_fun_(self.fun_build_net, 
+            self.init_fun_(self.fun_build_net,
                            self.DIM_STATE, self.BATCH_SIZE, self.GAMMA,
                            self.LEARNING_RATE, self.MOMENTUM,
                            self.REWARD_SCALING, self.REWARD_SCALING_UPDATE)
-        
+
         self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(self.ACTIONS), num_buffer)
         self.freeze_counter = self.FREEZE_PERIOD - 1
         self.update_counter = self.UPDATE_PERIOD - 1
@@ -94,18 +105,18 @@ class QAgentNN(QAgent):
         self.freeze_counter = self.FREEZE_PERIOD - 1
         self.update_counter = self.UPDATE_PERIOD - 1
         self.rs_counter = self.RS_PERIOD - 1
-        
+
         if foget_table:
             self.fun_train_qnn, self.fun_adapt_rs, self.fun_clone_target, self.fun_q_lookup, self.fun_rs_lookup = \
             self.init_fun_(
-                self.fun_build_net, 
+                self.fun_build_net,
                 self.DIM_STATE, self.BATCH_SIZE, self.GAMMA, self.LEARNING_RATE, self.MOMENTUM,
                 self.REWARD_SCALING, self.REWARD_SCALING_UPDATE
             )
-        
+
         if foget_memory:
             self.ReplayMemory.reset()
-       
+
         kwargs['foget_table'] = foget_table
         super(QAgentNN, self).reset(**kwargs)
 
@@ -119,8 +130,9 @@ class QAgentNN(QAgent):
         # store latest experience into replay memory
         if last_observation is not None and observation is not None:
             idx_action = self.ACTIONS.index(last_action)
-            self.replay_memory.update(last_observation, idx_action, last_reward, observation)
-        
+            self.replay_memory.update(last_observation, idx_action,
+                                      last_reward, observation)
+
         # try invoking super-class
         return super(QAgentNN, self).improve_translate_(last_observation, last_action, last_reward, observation)
 
