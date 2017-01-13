@@ -107,8 +107,11 @@ class QAgentNN(QAgent):
         self.rs_counter = self.RS_PERIOD - 1
 
         if foget_table:
-            self.fun_train_qnn, self.fun_adapt_rs, self.fun_clone_target, self.fun_q_lookup, self.fun_rs_lookup = \
-            self.init_fun_(
+            self.fun_train_qnn, \
+            self.fun_adapt_rs, \
+            self.fun_clone_target, \
+            self.fun_q_lookup, \
+            self.fun_rs_lookup = self.init_fun_(
                 self.fun_build_net,
                 self.DIM_STATE, self.BATCH_SIZE, self.GAMMA, self.LEARNING_RATE, self.MOMENTUM,
                 self.REWARD_SCALING, self.REWARD_SCALING_UPDATE
@@ -134,36 +137,36 @@ class QAgentNN(QAgent):
                                       last_reward, observation)
 
         # try invoking super-class
-        return super(QAgentNN, self).improve_translate_(last_observation, last_action, last_reward, observation)
+        return super(QAgentNN, self).improve_translate_(
+            last_observation, last_action, last_reward, observation
+        )
 
     def reinforce_(self, last_state, last_action, last_reward, state):
         """Train the network periodically with past experiences
-        Periodically train the network with random samples from the replay memory. Freeze the network parameters 
-        during non-training epochs.
+        Periodically train the network with random samples from the replay
+        memory. Freeze the network parameters during non-training epochs.
 
-        Will not update the network if the state or reward passes in is None or the replay memory is yet to be 
-        filled up.
+        Will not update the network if the state or reward passes in is None
+        or the replay memory is yet to be filled up.
 
         Parameters
         ----------
         state : current agent state
         last_reward : reward from last action
 
-        Returns : training loss
+        Returns : training loss or None
         -------
 
         """
-        # update network if not frozen or dry run: sample memory and train network
+        # update network if not frozen or dry run
         if state is None:
             if self.verbose > 0:
                 print "  QAgentNN: ",
                 print "state is None, agent not updated."
-            return None
         elif last_reward is None:
             if self.verbose > 0:
                 print "  QAgentNN: ",
                 print "last_reward is None, agent not updated."
-            return None
         elif not self.replay_memory.isfilled():
                 if self.verbose > 0:
                     print "  QAgentNN: ",
@@ -173,7 +176,6 @@ class QAgentNN(QAgent):
 
             if self.verbose > 0:
                 print "  QAgentNN: ",
-                # print "update counter {}, freeze counter {}.".format(self.update_counter, self.freeze_counter)
                 print "update counter {}, freeze counter {}, rs counter {}.".format(
                     self.update_counter, self.freeze_counter, self.rs_counter)
 
@@ -193,16 +195,24 @@ class QAgentNN(QAgent):
                     )
             else:
                 self.update_counter -= 1
-
             return loss
 
+        return None
+
     def act_(self, state, epsilon=None):
-        # Escalate to QAgent.act_(). Pass None state if memory is not full to invoke random action.
-        return super(QAgentNN, self).act_(state if self.is_memory_filled() else None, epsilon)
+        # Escalate to QAgent.act_().
+        # Pass None state if memory is not full to invoke random action.
+        return super(QAgentNN, self).act_(
+            state if self.is_memory_filled() else None,
+            epsilon
+        )
 
     def update_table_(self, last_state, last_action, reward, current_state):
         loss = self.fun_train_qnn(
-            self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state)
+            self.rescale_state(last_state),
+            last_action,
+            reward,
+            self.rescale_state(current_state)
         )
 
         if self.freeze_counter == 0:
@@ -213,7 +223,10 @@ class QAgentNN(QAgent):
         if self.REWARD_SCALING_UPDATE=='adaptive':
             if self.rs_counter == 0:
                 loss = self.fun_adapt_rs(
-                    self.rescale_state(last_state), last_action, reward, self.rescale_state(current_state)
+                    self.rescale_state(last_state),
+                    last_action,
+                    reward,
+                    self.rescale_state(current_state)
                 )
                 self.rs_counter = self.RS_PERIOD - 1
             else:
@@ -252,9 +265,9 @@ class QAgentNN(QAgent):
             nonlinearity=lasagne.nonlinearities.tanh)
         return l_out
 
-    def init_fun_(self, f_build_net, 
-                  dim_state, batch_size, gamma, 
-                  learning_rate, momentum, 
+    def init_fun_(self, f_build_net,
+                  dim_state, batch_size, gamma,
+                  learning_rate, momentum,
                   reward_scaling, reward_scaling_update):
         """Define and compile function to train and evaluate network
         :param f_build_net: function to build dqn
@@ -267,41 +280,64 @@ class QAgentNN(QAgent):
         :param reward_scaling_update:
         :return:
         """
-        self.qnn = f_build_net(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
-        self.qnn_target = f_build_net(None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS))
+        self.qnn = f_build_net(
+            None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS)
+        )
+        self.qnn_target = f_build_net(
+            None, tuple([None]+list(self.DIM_STATE)), len(self.ACTIONS)
+        )
 
         if len(dim_state) != 3:
             raise ValueError("We only support 3 dimensional states.")
 
         # inputs
-        old_states, new_states = T.tensor4s('old_states', 'new_states')   # (BATCH_SIZE, MEMORY_LENGTH, DIM_STATE[0], DIM_STATE[1])
+        # state: (BATCH_SIZE, MEMORY_LENGTH, DIM_STATE[0], DIM_STATE[1])
+        old_states, new_states = T.tensor4s('old_states', 'new_states')
         actions = T.ivector('actions')           # (BATCH_SIZE, 1)
         rewards = T.vector('rewards')            # (BATCH_SIZE, 1)
         rs = shared(value=reward_scaling*1.0, name='reward_scaling')
 
         # intermediates
-        predict_q = lasagne.layers.get_output(layer_or_layers=self.qnn, inputs=old_states)
-        predict_next_q = lasagne.layers.get_output(layer_or_layers=self.qnn_target, inputs=new_states)
+        predict_q = lasagne.layers.get_output(
+            layer_or_layers=self.qnn, inputs=old_states
+        )
+        predict_next_q = lasagne.layers.get_output(
+            layer_or_layers=self.qnn_target, inputs=new_states
+        )
         target_q = rewards/rs + gamma*T.max(predict_next_q, axis=1)
 
         # penalty
         singularity = 1+1e-3
         penalty = T.mean(
             1/T.pow(predict_q[T.arange(batch_size), actions]-singularity, 2) +
-            1/T.pow(predict_q[T.arange(batch_size), actions]+singularity, 2) - 2)
+            1/T.pow(predict_q[T.arange(batch_size), actions]+singularity, 2) -
+            2
+        )
 
 
         # outputs
-        loss = T.mean((predict_q[T.arange(batch_size), actions] - target_q)**2) + (1e-5)*penalty
+        loss = T.mean(
+            (predict_q[T.arange(batch_size), actions] - target_q)**2
+        ) + (1e-5)*penalty
 
         # weight update formulas (mini-batch SGD with momentum)
         params = lasagne.layers.get_all_params(self.qnn, trainable=True)
-        updates = lasagne.updates.nesterov_momentum(loss, params, learning_rate=learning_rate, momentum=momentum)
-        updates_rs = lasagne.updates.nesterov_momentum(loss, [rs], learning_rate=learning_rate, momentum=momentum)
+        updates = lasagne.updates.nesterov_momentum(
+            loss, params, learning_rate=learning_rate, momentum=momentum
+        )
+        updates_rs = lasagne.updates.nesterov_momentum(
+            loss, [rs], learning_rate=learning_rate, momentum=momentum
+        )
 
         # functions
-        fun_train_qnn = theano.function([old_states, actions, rewards, new_states], loss, updates=updates, allow_input_downcast=True)
-        fun_adapt_rs = theano.function([old_states, actions, rewards, new_states], loss, updates=updates_rs, allow_input_downcast=True)
+        fun_train_qnn = theano.function(
+            [old_states, actions, rewards, new_states],
+            loss, updates=updates, allow_input_downcast=True
+        )
+        fun_adapt_rs = theano.function(
+            [old_states, actions, rewards, new_states],
+            loss, updates=updates_rs, allow_input_downcast=True
+        )
 
         def fun_clone_target():
             lasagne.layers.helper.set_all_param_values(
@@ -309,7 +345,9 @@ class QAgentNN(QAgent):
                 lasagne.layers.helper.get_all_param_values(self.qnn)
             )
 
-        fun_q_lookup = theano.function([old_states], predict_q, allow_input_downcast=True)
+        fun_q_lookup = theano.function(
+            [old_states], predict_q, allow_input_downcast=True
+        )
         fun_rs_lookup = rs.get_value
 
         return fun_train_qnn, fun_adapt_rs, fun_clone_target, fun_q_lookup, fun_rs_lookup

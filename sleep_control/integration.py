@@ -17,8 +17,8 @@ class Emulation:
         if self.last_reward is None or self.last_cost is None:
             system_reward = None
         else:
-            system_reward = (self.last_reward - self.last_cost) if self.BETA is None \
-                else (self.BETA*self.last_reward - (1-self.BETA)*self.last_cost)
+            system_reward = (self.last_reward + self.last_cost) if self.BETA is None \
+                else (self.BETA*self.last_reward + (1-self.BETA)*self.last_cost)
         print "Last reward: {}".format(system_reward)
 
         observation = self.get_observation_()
