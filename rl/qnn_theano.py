@@ -161,21 +161,21 @@ class QAgentNN(QAgent):
         # update network if not frozen or dry run
         if state is None:
             if self.verbose > 0:
-                print "  QAgentNN: ",
+                print " "*4 + "QAgentNN.reinforce_():",
                 print "state is None, agent not updated."
         elif last_reward is None:
             if self.verbose > 0:
-                print "  QAgentNN: ",
+                print " "*4 + "QAgentNN.reinforce_():",
                 print "last_reward is None, agent not updated."
         elif not self.replay_memory.isfilled():
-                if self.verbose > 0:
-                    print "  QAgentNN: ",
-                    print "unfull memory."
+            if self.verbose > 0:
+                print " "*4 + "QAgentNN.reinforce_():",
+                print "unfull memory."
         else:
             loss = None
 
             if self.verbose > 0:
-                print "  QAgentNN: ",
+                print " "*4 + "QAgentNN.reinforce_():",
                 print "update counter {}, freeze counter {}, rs counter {}.".format(
                     self.update_counter, self.freeze_counter, self.rs_counter)
 
@@ -185,11 +185,11 @@ class QAgentNN(QAgent):
                 self.update_counter = self.UPDATE_PERIOD - 1
 
                 if self.verbose > 0:
-                    print "  QAgentNN: ",
+                    print " "*4 + "QAgentNN.reinforce_():",
                     print "update loss is {}, reward_scaling is {}".format(loss, self.REWARD_SCALING)
                 if self.verbose > 1:
                     freq = itemfreq(last_actions)
-                    print "    QAgentNN: ",
+                    print " "*8 + "QAgentNN.reinforce_():",
                     print "batch action distribution: {}".format(
                         {self.ACTIONS[int(freq[i, 0])]: 1.0 * freq[i, 1] / self.BATCH_SIZE for i in range(freq.shape[0])}
                     )

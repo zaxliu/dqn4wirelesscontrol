@@ -19,19 +19,24 @@ class Emulation:
         else:
             system_reward = (self.last_reward + self.last_cost) if self.BETA is None \
                 else (self.BETA*self.last_reward + (1-self.BETA)*self.last_cost)
-        print "Last reward: {}".format(system_reward)
+        print "Emulation.step():",
+        print "last reward: {}".format(system_reward)
 
         observation = self.get_observation_()
-        print "Observation: {}".format(observation)
+        print "Emulation.step():",
+        print "observation: {}".format(observation)
         if observation is None:
-            print "Run out of data, please reset!"
+            print "Emulation.step():",
+            print "run out of data, please reset!"
             return None
 
         control, update_result = self.c.observe_and_control(observation=observation, last_reward=system_reward)
-        print "Control: {}, Agent update: {}".format(control, update_result)
+        print "Emulation.step():",
+        print "control: {}, agent update: {}".format(control, update_result)
 
         cost, reward = self.control_and_reward_(control=control)
-        print "Cost: {}, Reward: {}".format(cost, reward)
+        print "Emulation.step():",
+        print "cost: {}, reward: {}".format(cost, reward)
         self.last_cost = cost
         self.last_reward = reward
         self.epoch += 1
@@ -48,7 +53,8 @@ class Emulation:
     def get_observation_(self):
         traffic_df = self.te.generate_traffic()
         if traffic_df is None:
-            print "Run out of data, please reset environment!"
+            print "Emulation.step():",
+            print "run out of data, please reset environment!"
             return None
         else:
             observation = self.ts.observe(traffic_df=traffic_df)

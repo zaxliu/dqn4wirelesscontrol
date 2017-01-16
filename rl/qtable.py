@@ -43,7 +43,7 @@ class QAgent(object):
         self.__last_state = None
         self.__last_action = None
         self.__q_table = {}
-        
+
         return
 
     def observe_and_act(self, observation, last_reward=None):
@@ -52,11 +52,11 @@ class QAgent(object):
             1. improve environment model(s) and translate observation to agent state.
             2. reinforce value/policy.
             3. choose actions.
-        
+
         Parameters
         ----------
         observation : environment observation at current step.
-        last_reward : reward for latest action. 
+        last_reward : reward for latest action.
 
         Returns
         -------
@@ -69,12 +69,12 @@ class QAgent(object):
         update_result = self.reinforce_(*exp_state)
         # Choose action based on current state
         action = self.act_(state)
-        
+
         # Update buffer
         self.__last_observation = observation
         self.__last_state = state
         self.__last_action = action
-        
+
         return action, update_result
 
     def reset(self, foget_table=False):
@@ -96,12 +96,12 @@ class QAgent(object):
             update_result = None
         else:
             update_result = self.update_table_(last_state, last_action, last_reward, state)
-        
+
         return update_result
 
     def update_table_(self, last_state, last_action, last_reward, state):
         """Update Q function
-        Use off-policy Bellman iteration: 
+        Use off-policy Bellman iteration:
             Q_new(s, a) = (1-alpha)*Q_old(s, a) + alpha*(R + gamma*max_a'{Q_old(s', a')})
         """
         best_qval = max(self.lookup_table_(state))
@@ -109,31 +109,34 @@ class QAgent(object):
 
         if not isinstance(last_state, Hashable):
             last_state = tuple(last_state.ravel())  # TODO: assume should be numpy array
-       
+
         self.__q_table[(last_state, last_action)] = \
-            (1-self.ALPHA)*(self.__q_table[(last_state, last_action)] \
-            if (last_state, last_action) in self.__q_table else self.DEFAULT_QVAL) + self.ALPHA*delta_q        
-        
+            (1-self.ALPHA)*(
+                self.__q_table[(last_state, last_action)]
+                if (last_state, last_action) in self.__q_table
+                else self.DEFAULT_QVAL
+            ) + self.ALPHA*delta_q
+
         return None
 
     def act_(self, state, epsilon=None):
         """Choose an action based on current state.
-        
-        Support epsilon-greedy and soft_probability exploration strategies. 
+
+        Support epsilon-greedy and soft_probability exploration strategies.
         """
         # if state cannot be internalized as state, random act
         if state is None:
             idx_action = randint(0, len(self.ACTIONS))
             if self.verbose > 0:
-                print "  QAgent: ",
-                print "randomly choose action {} (None state).".format(self.ACTIONS[idx_action])
-        
+                print " "*4 + "QAgent.act_():",
+                print "randomly choose action (None state)."
+
         # random explore with "epsilon" probability. If epsilon is None use default self.EPSILON
         elif self.EXPLORE == 'epsilon':
             if rand() < (epsilon if epsilon is not None else self.EPSILON):
                 idx_action = randint(0, len(self.ACTIONS))
                 if self.verbose > 0:
-                    print "  QAgent: ",
+                    print " "*4 + "QAgent.act_():",
                     print "randomly choose action (Epsilon)."
             else:  # select the best action with "1-epsilon" prob., break tie randomly
                 q_vals = self.lookup_table_(state)
@@ -141,18 +144,18 @@ class QAgent(object):
                 idx_best_actions = [i for i in range(len(q_vals)) if q_vals[i] == max_qval]
                 idx_action = idx_best_actions[randint(0, len(idx_best_actions))]
                 if self.verbose > 0:
-                    print "  QAgent: ",
+                    print " "*4 + "QAgent.act_():",
                     print "choose best q among {} (Epsilon).".format(
                         {self.ACTIONS[i]: q_vals[i] for i in range(len(self.ACTIONS))}
                     )
-        
+
         # soft probability
         elif self.EXPLORE == 'soft_probability':
                 q_vals = self.lookup_table_(state)  # state = internal_state
                 exp_q_vals = exp(q_vals)
                 idx_action = multinomial(1, exp_q_vals/sum(exp_q_vals)).nonzero()[0][0]
                 if self.verbose > 0:
-                    print "  QAgent: ",
+                    print " "*4 + "QAgent.act_():",
                     print "choose best q among {} (SoftProb).".format(dict(zip(self.ACTIONS, q_vals)))
         else:
             raise ValueError('Unknown keyword for exploration strategy!')
@@ -163,7 +166,12 @@ class QAgent(object):
         """
         if not isinstance(state, Hashable):
             state = tuple(state.ravel())
-        
-        return [self.__q_table[(state, a)] if (state, a) in self.__q_table else self.DEFAULT_QVAL for a in self.ACTIONS]
-    
-    
+
+        return [
+            self.__q_table[(state, a)]
+            if (state, a) in self.__q_table
+            else self.DEFAULT_QVAL
+            for a in self.ACTIONS
+       ]
+
+

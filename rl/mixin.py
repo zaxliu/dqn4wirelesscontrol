@@ -4,6 +4,7 @@ import numpy as np
 
 from hmmlearn.utils import normalize
 
+
 class PhiMixin(object):
     """Phi function buffers the past PHI_LENGTH (action, observation) pairs
     to form an agent state.
@@ -20,7 +21,6 @@ class PhiMixin(object):
         self.PHI_LENGTH = phi_length
         self.phi_buffer = deque()
         self.__last_state = None  # private attribute
-
         super(PhiMixin, self).__init__(**kwargs)  # pass on key-word arguments for initialization of parent classes
 
     def improve_translate_(self, last_observation, last_action, last_reward, observation):
@@ -161,8 +161,4 @@ class DynaMixin(object):
 
         return exp
 
-    # TODO: Bellman Iteration with probablistic backup
-    # def full_probablistic_backup_():
-    #    """Update value function with full probablistic distribution."""
-    #    pass
 

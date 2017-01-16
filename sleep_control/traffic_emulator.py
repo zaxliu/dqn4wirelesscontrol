@@ -43,8 +43,7 @@ class TrafficEmulator(object):
         self.tail_datetime = tail_datetime if tail_datetime is not None \
             else self.session_df['startTime_datetime'].max()
         if self.head_datetime > self.tail_datetime:  # sanity check
-            print "head_datetime > tail_datetime"
-            raise ValueError
+            raise ValueError("head_datetime > tail_datetime")
         self.time_step = time_step
         # Rewarding mechanism==========================================
         if rewarding is None:
@@ -60,9 +59,13 @@ class TrafficEmulator(object):
         self.reset()
         # Output ======================================================
         if verbose > 0:
-            print "New TrafficEmulator with parameters:\n  " \
-                  "head={}\n  tail={}\n  time_step={}\n  epoch={}\n  verbose={}".format(
-                    self.head_datetime, self.tail_datetime, self.time_step, self.epoch, self.verbose)
+            print " "*4 + "TrafficEmulator.__init__():",
+            print "New TrafficEmulator with parameters:\n" \
+                  "    -head={}\n    -tail={}\n" \
+                  "    -time_step={}\n    -epoch={}\n    -verbose={}".format(
+                      self.head_datetime, self.tail_datetime,
+                      self.time_step, self.epoch, self.verbose
+                  )
         return
     # Public Methods
     def generate_traffic(self):
@@ -74,6 +77,7 @@ class TrafficEmulator(object):
         """
         # 1. Add new incoming sessions to active session buffer, if already run out of data, suggest reset()
         if self.epoch is None:
+            print "TrafficEmulator.__init__():",
             print "Run out of session data, please reset emulator!"
             return None
 
@@ -84,6 +88,7 @@ class TrafficEmulator(object):
 
         # if running out of data (left edge out of range), set epoch=None and return None
         if left >= self.tail_datetime:
+            print "TrafficEmulator.generate_traffic():",
             print "Reach tail_datetime, please reset dataset!"
             self.epoch = None
             return None
@@ -93,9 +98,11 @@ class TrafficEmulator(object):
 
         # logging
         if self.verbose > 0:
-            print "  TrafficEmulator.generate_traffic(): " \
-                  "located {}, droped {}, left {} sessions in epoch {}." \
-                  "".format(num_incoming_sessions, num_drops, num_active_sessions, self.epoch)
+            print " "*4 + "TrafficEmulator.generate_traffic():",
+            print "located {}, droped {}, left {} sessions."\
+                  "".format(num_incoming_sessions,
+                            num_drops,
+                            num_active_sessions)
         traffic_df = self.generate_requests_()  # generate requests for current epoch
         return traffic_df
 
@@ -104,6 +111,7 @@ class TrafficEmulator(object):
             service_reward = self.evaluate_service_(service_df=service_df)  # update active session buffer and emit reward
             self.epoch += 1  # increase timer by one epoch
         else:
+            print "TrafficEmulator.serve_and_reward():",
             print "Ran out of data or reach tail, service ignored."
             service_reward = 0
         return service_reward
@@ -261,8 +269,9 @@ class TrafficEmulator(object):
                          'bytesSent_per_request_domain': json.dumps(bytesSent_req_domain)}, index=[None]),
                         ignore_index=True)
 
-        if self.verbose > 0:
-            print "  TrafficEmulator.generate_requests_(): generated {} requests at epoch {}.".format(num_req, self.epoch)
+        if self.verbose > 1:
+            print " "*8 + "TrafficEmulator.generate_requests_():",
+            print "generated {} requests.".format(num_req)
 
         return traffic_df
 
@@ -383,13 +392,17 @@ class TrafficEmulator(object):
                 sessions.set_value(sessionID, 'servedReqID_per_domain', json.dumps(servedReqID_domain))
                 sessions.set_value(sessionID, 'failedReqID_per_domain', json.dumps(failedReqID_domain))
 
-        if self.verbose > 0:
-            print "  TrafficEmulator.evaluate_service_(): " \
-                  "served {}, queued {}, rejected {} ({}, {}), unattended {} at epoch {}, reward {} ({}, {}, {})".format(
-                num_serving_c, num_queuing_c, num_rejecting_c, num_retried_c, num_canceled_c, num_unattended_c,
-                self.epoch, reward_s+reward_w+reward_f, reward_s, reward_w, reward_f)
-            print "  TrafficEmulator.evaluate_service_(): " \
-                  "buffer info: pending {}, waiting {}, served {}, failed {}".format(
+        if self.verbose > 1:
+            print " "*8 + "TrafficEmulator.evaluate_service_():",
+            print "served {}, queued {}, rejected {} ({}, {}), " \
+                  "unattended {}, reward {} ({}, {}, {})".format(
+                      num_serving_c, num_queuing_c,
+                      num_rejecting_c, num_retried_c, num_canceled_c,
+                      num_unattended_c,
+                      reward_s+reward_w+reward_f,
+                      reward_s, reward_w, reward_f)
+            print " "*8 + "TrafficEmulator.evaluate_service_():",
+            print "pending {}, waiting {}, served {}, failed {}".format(
                 num_pending, num_waiting, num_served, num_failed)
 
         return reward_s+reward_w+reward_f
