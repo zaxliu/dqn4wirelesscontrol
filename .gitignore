@@ -19,3 +19,6 @@
 
 # MISC
 .fuse*
+
+# temp files
+.tmp
