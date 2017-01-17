@@ -119,7 +119,7 @@ class QAgent(object):
 
         return None
 
-    def act_(self, state, epsilon=None):
+    def act_(self, state):
         """Choose an action based on current state.
 
         Support epsilon-greedy and soft_probability exploration strategies.
@@ -131,9 +131,9 @@ class QAgent(object):
                 print " "*4 + "QAgent.act_():",
                 print "randomly choose action (None state)."
 
-        # random explore with "epsilon" probability. If epsilon is None use default self.EPSILON
+        # random explore with "epsilon" probability.
         elif self.EXPLORE == 'epsilon':
-            if rand() < (epsilon if epsilon is not None else self.EPSILON):
+            if rand() < self.EPSILON:
                 idx_action = randint(0, len(self.ACTIONS))
                 if self.verbose > 0:
                     print " "*4 + "QAgent.act_():",

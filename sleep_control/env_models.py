@@ -45,14 +45,18 @@ class SJTUModel(BaseEnvModel):
         Sensery:
             Emission model is Poisson.
     """
-    def __init__(self, traffic_params, queue_params, reward_params, **kwargs):
+    def __init__(self, traffic_params, queue_params, reward_params, verbose=0, **kwargs):
         """
         Parameters
         ----------
         traffic_params : traffic model parameters. Tuple, entries for each position:
             model_type : type of traffic model 'Poisson', 'IPP', or 'MMPP'.
             traffic_window_size : size of moving window of traffic observations.
+            stride     : improve model every "stride" steps.
+            n_iter     : iterations for each EM algorithm call.
             adjust_offset : small offset to avoid over-/underflow during model fitting.
+            eval_period   : steps every model evaluation
+            eval_len   : number of simulated steps for model evaluation.
             n_belief_bins : number of bins to quantize wake probability. Return raw state if 0.
         queue_params : queue related parameters.
             max_queue_len : maximum queue length to show in state.
@@ -61,15 +65,23 @@ class SJTUModel(BaseEnvModel):
             wait   : cost for queueing a request for one epoch
             fail   : cost for rejecting or time-out each request
             energy : cost for waking up server for one epoch
+            beta   : reward combining factor.
         """
-        (model_type, traffic_window_size, adjust_offset, n_belief_bins) = traffic_params
-        (max_queue_len, ) = queue_params
-        (Rs, Rw, Rf, Re) = reward_params
+        (model_type, traffic_window_size,
+         stride, n_iter, adjust_offset,
+         eval_period, eval_len,
+         n_belief_bins) = traffic_params
+        (max_queue_len,) = queue_params
+        (Rs, Rw, Rf, Re, beta) = reward_params
 
         # static params
         self.TRAFFIC_MODEL_TYPE = model_type
         self.TRAFFIC_WINDOW_SIZE = traffic_window_size
+        self.STRIDE = stride
+        self.N_ITER = n_iter
         self.ADJUST_OFFSET = adjust_offset
+        self.EVAL_PERIOD = eval_period
+        self.EVAL_LEN = eval_len
         self.N_BELIEF_BINS = n_belief_bins
         delta = 1.0 / self.N_BELIEF_BINS if self.N_BELIEF_BINS != 0 else None
         self.BELIEF_BIN_VALS = np.arange(0, 1+delta, delta) if delta is not None else None
@@ -78,20 +90,29 @@ class SJTUModel(BaseEnvModel):
         self.R_WAIT = Rw
         self.R_FAIL = Rf
         self.R_ENERGY = Re
+        self.BETA = beta
+        self.verbose = verbose
 
         # dynamic attr.
         self.traffic_model = None
         self.traffic_window = deque()
-
+        self.stride_counter = self.STRIDE - 1
+        self.eval_counter = self.EVAL_PERIOD - 1
         # procedures
         self.init_traffic_model_()
+
+    def reset(**kwargs):
+        self.traffic_model = None
+        self.traffic_window = deque()
+        self.stride_counter = self.STRIDE - 1
+        self.eval_counter = self.EVAL_PERIOD - 1
+        super(SJTUModel, self).reset()
 
     def improve(self, last_observation, last_action, last_reward, observation):
         """Improve environment model.
         The only trainable part of env model is the traffic model. Use a window
         of past observations to fit the traffic model.
         """
-        # TODO: fit stride and n_iteration
         (last_q, last_traffic_req, current_q) = observation
 
         # Update traffic moving window and fit model
@@ -100,21 +121,48 @@ class SJTUModel(BaseEnvModel):
 
         if len(self.traffic_window) > self.TRAFFIC_WINDOW_SIZE:
             self.traffic_window.popleft()
-        else:
-            pass  # TODO: vervose information.
 
         # Re-fit traffic model
         if len(self.traffic_window) == self.TRAFFIC_WINDOW_SIZE:
-            self.traffic_model.fit(
-                np.array(self.traffic_window)[:, None]
-            )
-            self.adjust_traffic_model_()
+            if self.verbose > 0:
+                print " "*4 + "SJTUModel.improve():",
+                print "stride counter {}, eval counter {}".format(
+                    self.stride_counter, self.eval_counter
+                )
+
+            if self.stride_counter == 0:
+                for _ in range(self.N_ITER):
+                    self.traffic_model.fit(
+                        np.array(self.traffic_window)[:, None]
+                    )
+                    self.adjust_traffic_model_()
+                self.stride_counter = self.STRIDE - 1
+            else:
+                self.stride_counter -= 1
+
+            if self.eval_counter == 0:
+                (score_window, score_expected) = self.score(n=self.EVAL_LEN)
+                self.eval_counter = self.EVAL_PERIOD - 1
+                if self.verbose > 0:
+                    print " "*4 + "SJTUModel.improve():",
+                    print "model score {}, expected {}, diff. {}".format(
+                        score_window, score_expected,
+                        score_window-score_expected
+                    )
+            else:
+                self.eval_counter -= 1
+        else:
+            if self.verbose > 0:
+                print " "*4 + "SJTUModel.improve():",
+                print "unfull traffic window."
 
         return
 
     def score(self, n=100):
         """Per-step log likelihood of real and simulated observation (appox. expectation)"""
-        score_window = self.traffic_model.score(self.traffic_window) / self.TRAFFIC_WINDOW_SIZE
+        score_window = self.traffic_model.score(
+                            np.array(self.traffic_window)[:, None]
+                       ) / self.TRAFFIC_WINDOW_SIZE
         score_expected = self.traffic_model.score(self.traffic_model.sample(n)[0]) / n
 
         return (score_window, score_expected)
@@ -138,7 +186,6 @@ class SJTUModel(BaseEnvModel):
         posterior = np.exp(fwdlattice[-1, :]); normalize(posterior)
         traffic_belief = self.quantize_belief_state_(posterior[0])
 
-        # current queue = min(current queue, MAX_Q_LEN)
         current_q = self.limit_queue_length(current_q)
 
         # last sleeping state = last sleep flag
@@ -154,7 +201,8 @@ class SJTUModel(BaseEnvModel):
                  state[2])
         next_state = (self.quantize_belief_state_(next_state[0]),
                       self.limit_queue_length(next_state[1]),
-                      next_state[2])
+                      next_state[2]) if next_state is not None \
+                     else None
 
         return state, action, reward, next_state
 
@@ -169,6 +217,9 @@ class SJTUModel(BaseEnvModel):
 
     def sample_transition_(self, state, action):
         """Sample next state and reward conditioned on state and action."""
+        if len(self.traffic_window) < self.TRAFFIC_WINDOW_SIZE:
+            return None, None
+
         (last_traffic_belief, current_q, last_sleep_flag) = state
         (sleep_flag, control_req) = action
 
@@ -194,11 +245,18 @@ class SJTUModel(BaseEnvModel):
         total_req = current_q + cur_traffic_ob
         next_q = total_req if sleep_flag==True else 0  # queue all or serve all
 
-
         # Reward
-        reward = self.R_SERVE * total_req * int(not sleep_flag) + \
-                 self.R_WAIT * total_req * int(sleep_flag) + \
-                 self.R_ENERGY * int(not sleep_flag)
+        if self.BETA is not None:
+            reward = self.BETA * (
+                        self.R_SERVE * total_req * int(not sleep_flag) +
+                        self.R_WAIT * total_req * int(sleep_flag)
+                     ) + (1-self.BETA) * (
+                         self.R_ENERGY * int(not sleep_flag)
+                     )
+        else:
+            reward = self.R_SERVE * total_req * int(not sleep_flag) + \
+                     self.R_WAIT * total_req * int(sleep_flag) + \
+                     self.R_ENERGY * int(not sleep_flag)
 
         return (posterior[0], next_q, sleep_flag), reward
 
@@ -231,17 +289,23 @@ class SJTUModel(BaseEnvModel):
 
     def adjust_traffic_model_(self):
         """Offset model params to avoid over-/under-flow"""
-        # TODO: replace NaN and show warning.
-        # self.traffic_model.startprob_ = \
-        #     np.nan_to_num(self.traffic_model.startprob_)
-        # self.traffic_model.transmat_ = \
-        #     np.nan_to_num(self.traffic_model.transmat_)
-        # self.traffic_model.emissionrates_ = \
-        #     np.nan_to_num(self.traffic_model.emissionrates_)
+        # replace NaN and show warning.
+        self.traffic_model.startprob_, flag1 = \
+            self.fixnan(self.traffic_model.startprob_)
+        self.traffic_model.transmat_, flag2 = \
+            self.fixnan(self.traffic_model.transmat_)
+        self.traffic_model.emissionrates_, flag3 = \
+            self.fixnan(self.traffic_model.emissionrates_)
+        if self.verbose > 2:
+            print " "*12 + "SJTUModel.adjust_traffic_model_():",
+            print "model param NaN replacement {}, {}, {}".format(
+                flag1, flag2, flag3
+            )
 
         self.traffic_model.startprob_prior += self.ADJUST_OFFSET
         self.traffic_model.transmat_ += self.ADJUST_OFFSET
-        if self.TRAFFIC_MODEL_TYPE == 'Poisson' or 'MMPP':
+        if self.TRAFFIC_MODEL_TYPE == 'Poisson' or \
+           self.TRAFFIC_MODEL_TYPE == 'MMPP':
             self.traffic_model.emissionrates_ += self.ADJUST_OFFSET  # when the model is general MMPP
         elif self.TRAFFIC_MODEL_TYPE == 'IPP':
             self.traffic_model.emissionrates_[0] += self.ADJUST_OFFSET
@@ -254,6 +318,12 @@ class SJTUModel(BaseEnvModel):
         normalize(self.traffic_model.transmat_, axis=1)
 
         return
+
+    def fixnan(self, x):
+        if np.any(np.isnan(x)):
+            return np.nan_to_num(x), True
+        else:
+            return x, False
 
     def quantize_belief_state_(self, belief):
         """Quantize traffic belief and return Bin Values."""

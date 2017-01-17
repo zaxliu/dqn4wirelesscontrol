@@ -18,10 +18,10 @@ class DynaQAgentNN(DynaMixin, QAgentNN):
         super(DynaQAgentNN, self).__init__(**kwargs)
 
 # PhiMixin test
-agent_type = 'QAgent'
+agent_type = 'QAgentNN'
 maze = SimpleMaze()
 env_model = SimpleMazeModel(maze)
-num_sim = 0
+num_sim = 4
 
 if agent_type == 'QAgent':
     agent = DynaQAgent(
@@ -36,7 +36,8 @@ elif agent_type == 'QAgentNN':
         actions=maze.ACTIONS,
         learning_rate=0.001, reward_scaling=100, batch_size=100,
         freeze_period=100, memory_size=1000,
-        alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1, verbose=0)
+        alpha=0.5, gamma=0.5, explore_strategy='epsilon', epsilon=0.1,
+        verbose=2)
 else:
     raise ValueError("Unrecognized agent type!")
 print "Maze and agent initialized!"

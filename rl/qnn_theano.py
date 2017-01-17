@@ -84,22 +84,23 @@ class QAgentNN(QAgent):
         self.LEARNING_RATE = learning_rate
         self.MOMENTUM = momentum
         self.UPDATE_PERIOD = update_period
-        self.REWARD_SCALING = reward_scaling
         self.REWARD_SCALING_UPDATE = reward_scaling_update
         self.RS_PERIOD = rs_period
         self.fun_build_net = f_build_net if f_build_net is not None else QAgentNN.build_net_
+
+        self.rs = reward_scaling
+        self.freeze_counter = self.FREEZE_PERIOD - 1
+        self.update_counter = self.UPDATE_PERIOD - 1
+        self.rs_counter = self.RS_PERIOD - 1
 
         # set q table as a NN
         self.fun_train_qnn, self.fun_adapt_rs, self.fun_clone_target, self.fun_q_lookup, self.fun_rs_lookup = \
             self.init_fun_(self.fun_build_net,
                            self.DIM_STATE, self.BATCH_SIZE, self.GAMMA,
                            self.LEARNING_RATE, self.MOMENTUM,
-                           self.REWARD_SCALING, self.REWARD_SCALING_UPDATE)
+                           self.rs, self.REWARD_SCALING_UPDATE)
 
         self.replay_memory = QAgentNN.ReplayMemory(memory_size, batch_size, dim_state, len(self.ACTIONS), num_buffer)
-        self.freeze_counter = self.FREEZE_PERIOD - 1
-        self.update_counter = self.UPDATE_PERIOD - 1
-        self.rs_counter = self.RS_PERIOD - 1
 
     def reset(self, foget_table=False, foget_memory=False, **kwargs):
         self.freeze_counter = self.FREEZE_PERIOD - 1
@@ -114,7 +115,7 @@ class QAgentNN(QAgent):
             self.fun_rs_lookup = self.init_fun_(
                 self.fun_build_net,
                 self.DIM_STATE, self.BATCH_SIZE, self.GAMMA, self.LEARNING_RATE, self.MOMENTUM,
-                self.REWARD_SCALING, self.REWARD_SCALING_UPDATE
+                self.rs, self.REWARD_SCALING_UPDATE
             )
 
         if foget_memory:
@@ -126,59 +127,67 @@ class QAgentNN(QAgent):
         return
 
     def improve_translate_(self, last_observation, last_action, last_reward, observation):
-        """Update replay memory with new experience
-        Treat the memory as a bootstraped environment model.
-        Pass over observation as state.
-        """
-        # store latest experience into replay memory
-        if last_observation is not None and observation is not None:
-            idx_action = self.ACTIONS.index(last_action)
-            self.replay_memory.update(last_observation, idx_action,
-                                      last_reward, observation)
-
         # try invoking super-class
         return super(QAgentNN, self).improve_translate_(
             last_observation, last_action, last_reward, observation
         )
 
     def reinforce_(self, last_state, last_action, last_reward, state):
-        """Train the network periodically with past experiences
-        Periodically train the network with random samples from the replay
-        memory. Freeze the network parameters during non-training epochs.
+        """Train the network
+        Put the latest experience into replay memory and eriodically train
+        the network with batch of random samples sampled from the replay
+        memory.
+
+        Freeze parameters of the target network during non-training epochs.
 
         Will not update the network if the state or reward passes in is None
         or the replay memory is yet to be filled up.
 
         Parameters
         ----------
-        state : current agent state
+        last_state  : last agent state
+        last_action :
         last_reward : reward from last action
+        state       :
 
-        Returns : training loss or None
+        Returns     : training loss or None
         -------
 
         """
-        # update network if not frozen or dry run
-        if state is None:
+        # Check if this is a valid experience
+        if last_state is None:
             if self.verbose > 0:
                 print " "*4 + "QAgentNN.reinforce_():",
-                print "state is None, agent not updated."
+                print "last_state is None."
+            return None
         elif last_reward is None:
             if self.verbose > 0:
                 print " "*4 + "QAgentNN.reinforce_():",
-                print "last_reward is None, agent not updated."
-        elif not self.replay_memory.isfilled():
+                print "last_reward is None."
+            return None
+        elif state is None:
+            if self.verbose > 0:
+                print " "*4 + "QAgentNN.reinforce_():",
+                print "state is None."
+            return None
+
+        # Store latest experience into replay memory
+        idx_action = self.ACTIONS.index(last_action)
+        self.replay_memory.update(last_state, idx_action, last_reward, state)
+
+        # Update networks
+        if not self.replay_memory.isfilled():
             if self.verbose > 0:
                 print " "*4 + "QAgentNN.reinforce_():",
                 print "unfull memory."
         else:
-            loss = None
-
+            # Log counter progress 
             if self.verbose > 0:
                 print " "*4 + "QAgentNN.reinforce_():",
                 print "update counter {}, freeze counter {}, rs counter {}.".format(
                     self.update_counter, self.freeze_counter, self.rs_counter)
 
+            loss = None
             if self.update_counter == 0:
                 last_states, last_actions, last_rewards, states = self.replay_memory.sample_batch()
                 loss = self.update_table_(last_states, last_actions, last_rewards, states)
@@ -186,26 +195,34 @@ class QAgentNN(QAgent):
 
                 if self.verbose > 0:
                     print " "*4 + "QAgentNN.reinforce_():",
-                    print "update loss is {}, reward_scaling is {}".format(loss, self.REWARD_SCALING)
+                    print "update loss is {}, reward_scaling is {}".format(
+                        loss, self.rs
+                    )
+
                 if self.verbose > 1:
                     freq = itemfreq(last_actions)
                     print " "*8 + "QAgentNN.reinforce_():",
                     print "batch action distribution: {}".format(
-                        {self.ACTIONS[int(freq[i, 0])]: 1.0 * freq[i, 1] / self.BATCH_SIZE for i in range(freq.shape[0])}
+                        {self.ACTIONS[int(freq[i, 0])]: 1.0 * freq[i, 1] /
+                         self.BATCH_SIZE for i in range(freq.shape[0])}
                     )
             else:
                 self.update_counter -= 1
+
             return loss
 
         return None
 
-    def act_(self, state, epsilon=None):
+    def act_(self, state):
         # Escalate to QAgent.act_().
         # Pass None state if memory is not full to invoke random action.
-        return super(QAgentNN, self).act_(
-            state if self.is_memory_filled() else None,
-            epsilon
-        )
+        if self.is_memory_filled():
+            return super(QAgentNN, self).act_(state)
+        else:
+            if self.verbose > 2:
+                print " "*8 + "QAgentNN.act_():",
+                print "unfull memory."
+            return super(QAgentNN, self).act_(None)
 
     def update_table_(self, last_state, last_action, reward, current_state):
         loss = self.fun_train_qnn(
@@ -215,11 +232,14 @@ class QAgentNN(QAgent):
             self.rescale_state(current_state)
         )
 
+        # Sync target network with non-target network
         if self.freeze_counter == 0:
             self.fun_clone_target()
             self.freeze_counter = self.FREEZE_PERIOD - 1
         else:
             self.freeze_counter -= 1
+
+        # adjust reward scaling values
         if self.REWARD_SCALING_UPDATE=='adaptive':
             if self.rs_counter == 0:
                 loss = self.fun_adapt_rs(
@@ -229,10 +249,9 @@ class QAgentNN(QAgent):
                     self.rescale_state(current_state)
                 )
                 self.rs_counter = self.RS_PERIOD - 1
+                self.rs = self.fun_rs_lookup()
             else:
                 self.rs_counter -= 1
-
-        self.REWARD_SCALING = self.fun_rs_lookup()
 
         return loss
 

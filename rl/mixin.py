@@ -110,12 +110,13 @@ class LossAnealMixin(object):
 
 class DynaMixin(object):
     """Model-assisted Reinforcement Learning."""
-    def __init__(self, env_model, num_sim=1, **kwargs):
+    def __init__(self, env_model, num_sim=1, verbose=1, **kwargs):
         super(DynaMixin, self).__init__(**kwargs)
 
         self.env_model = env_model  # environment model
         self.NUM_SIM = num_sim  # number of simulated experience per real experience
         self.__last_state = None
+        self.verbose = verbose
 
     def reset(self, foget_model=False, **kwargs):
         if foget_model:
@@ -131,6 +132,10 @@ class DynaMixin(object):
         state = self.env_model.update_belief_state(last_state, last_action, observation)
         self.__last_state = state
 
+        if self.verbose > 0:
+            print " "*4 + "DynaMixin.improve_translate_():",
+            print "belief state {}".format(state)
+
         return super(DynaMixin, self).improve_translate_(last_state, last_action, last_reward, state)
 
     def reinforce_(self, last_state, last_action, last_reward, state):
@@ -139,12 +144,13 @@ class DynaMixin(object):
 
         # RL with simulated experience
         update_result_sim = [None]*self.NUM_SIM
-        for i in range(self.NUM_SIM):
-            simulated_exp = self.simulate_()
-            update_result_sim[i] = super(DynaMixin, self).reinforce_(*simulated_exp)
-        # TODO: batch simulate
-        # simulated_exp = self.simulate_self.(self.num_sim)
-        # self.update_table_(*simulated_exp)
+        for n in range(self.NUM_SIM):
+            exp = self.simulate_()
+            if self.verbose > 0:
+                print " "*4 + "DynaMixin.reinforce_():",
+                print "simulated experience {}:".format(n),
+                print "({}, {}, {}, {})".format(*exp)
+            update_result_sim[n] = super(DynaMixin, self).reinforce_(*exp)
 
         return (update_result_real, update_result_sim)
 
@@ -155,10 +161,8 @@ class DynaMixin(object):
             2. perform action (not necessaryly following policy)
             3. collect next state and corresponding reward
         """
-        exp = self.env_model.sample_experience(
-            policy=lambda x: self.act_(x, epsilon=1.0)
+        return self.env_model.sample_experience(
+            policy=lambda x: self.act_(None)
         )
-
-        return exp
 
 
