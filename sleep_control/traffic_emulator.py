@@ -60,13 +60,16 @@ class TrafficEmulator(object):
         # Output ======================================================
         if verbose > 0:
             print " "*4 + "TrafficEmulator.__init__():",
-            print "New TrafficEmulator with parameters:\n" \
-                  "    -head={}\n    -tail={}\n" \
-                  "    -time_step={}\n    -epoch={}\n    -verbose={}".format(
-                      self.head_datetime, self.tail_datetime,
-                      self.time_step, self.epoch, self.verbose
-                  )
+            print "New TrafficEmulator with params:"
+            print " "*8 + "head: {}, tail: {}, time_step: {}".format(
+                self.head_datetime, self.tail_datetime, self.time_step
+            )
+            print " "*8 + "Rs: {}, Rw: {}, Rf: {}".format(
+                self.Rs, self.Rw, self.Rf
+            )
+
         return
+
     # Public Methods
     def generate_traffic(self):
         """Get traffic for this epoch, set epoch=None if run out of data

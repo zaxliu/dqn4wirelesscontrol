@@ -16,6 +16,7 @@
 *.csv
 *.txt
 *.stat
+*.tar.gz
 
 # MISC
 .fuse*

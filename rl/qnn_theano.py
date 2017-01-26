@@ -326,7 +326,7 @@ class QAgentNN(QAgent):
         target_q = rewards/rs + gamma*T.max(predict_next_q, axis=1)
 
         # penalty
-        singularity = 1+1e-3
+        singularity = 1+1e-4
         penalty = T.mean(
             1/T.pow(predict_q[T.arange(batch_size), actions]-singularity, 2) +
             1/T.pow(predict_q[T.arange(batch_size), actions]+singularity, 2) -
@@ -341,8 +341,10 @@ class QAgentNN(QAgent):
 
         # weight update formulas (mini-batch SGD with momentum)
         params = lasagne.layers.get_all_params(self.qnn, trainable=True)
+        grads = T.grad(loss, params)
+        grads = lasagne.updates.total_norm_constraint(grads, 10)
         updates = lasagne.updates.nesterov_momentum(
-            loss, params, learning_rate=learning_rate, momentum=momentum
+            grads, params, learning_rate=learning_rate, momentum=momentum
         )
         updates_rs = lasagne.updates.nesterov_momentum(
             loss, [rs], learning_rate=learning_rate, momentum=momentum

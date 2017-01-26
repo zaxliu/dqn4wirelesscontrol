@@ -72,7 +72,7 @@ class SJTUModel(BaseEnvModel):
          eval_period, eval_len,
          n_belief_bins) = traffic_params
         (max_queue_len,) = queue_params
-        (Rs, Rw, Rf, Re, beta) = reward_params
+        (Rs, Rw, Rf, Co, Cs, beta) = reward_params
 
         # static params
         self.TRAFFIC_MODEL_TYPE = model_type
@@ -89,7 +89,8 @@ class SJTUModel(BaseEnvModel):
         self.R_SERVE = Rs
         self.R_WAIT = Rw
         self.R_FAIL = Rf
-        self.R_ENERGY = Re
+        self.C_OP = Co
+        self.C_SW = Cs
         self.BETA = beta
         self.verbose = verbose
 
@@ -250,13 +251,16 @@ class SJTUModel(BaseEnvModel):
             reward = self.BETA * (
                         self.R_SERVE * total_req * int(not sleep_flag) +
                         self.R_WAIT * total_req * int(sleep_flag)
-                     ) + (1-self.BETA) * (
-                         self.R_ENERGY * int(not sleep_flag)
+                     ) + \
+                    (1-self.BETA) * (
+                        self.C_OP * int(not sleep_flag) +
+                        self.C_SW * int(last_sleep_flag!=sleep_flag)
                      )
         else:
             reward = self.R_SERVE * total_req * int(not sleep_flag) + \
                      self.R_WAIT * total_req * int(sleep_flag) + \
-                     self.R_ENERGY * int(not sleep_flag)
+                     self.C_OP * int(not sleep_flag) + \
+                     self.C_SW * int(last_sleep_flag!=sleep_flag)
 
         return (posterior[0], next_q, sleep_flag), reward
 

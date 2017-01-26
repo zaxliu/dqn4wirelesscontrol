@@ -60,7 +60,7 @@ model_type, traffic_window_size = 'IPP', 50
 stride, n_iter, adjust_offset = 2, 3, 1e-22
 eval_period, eval_len = 4, 100
 n_belief_bins, max_queue_len = 5, 20
-Rs, Rw, Rf, Re = 1.0, -1.0, -10.0, -5.0
+Rs, Rw, Rf, Co, Cs = 1.0, -1.0, -10.0, -5.0, -0.5
 num_sim = 10
 
 # Build entities
@@ -69,14 +69,14 @@ te = TrafficEmulator(session_df=session_df, time_step=time_step,
                      rewarding=rewarding,
                      verbose=1)
 
-ts = TrafficServer(verbose=2, cost=Re)
+ts = TrafficServer(verbose=2, cost=(Co, Cs))
 
 traffic_params = (model_type, traffic_window_size,
                   stride, n_iter, adjust_offset,
                   eval_period, eval_len,
                   n_belief_bins)
 queue_params = (max_queue_len,)
-reward_params = (Rs, Rw, Rf, Re, None)
+reward_params = (Rs, Rw, Rf, Co, Cs, None)
 env_model = SJTUModel(traffic_params, queue_params, reward_params, verbose=1)
 
 agent = DynaQAgent(env_model=env_model, num_sim=num_sim,

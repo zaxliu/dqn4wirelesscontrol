@@ -27,13 +27,22 @@ class TrafficServer:
     TrafficServer the ability to sleep and queue requests. These operational
     states are reflected in both the service generated and the cost emitted.
     """
-    def __init__(self, verbose=0, cost=1):
+    def __init__(self, verbose=0, cost=None):
         self.epoch = 0
         self.q = {}
         self.verbose = verbose      # verbosity level
         self.last_traffic_ob = 0
         self.last_q_ob = 0
-        self.COST = cost
+        self.last_sleep_flag = True
+        if cost is None:
+            self.OP_COST, self.SW_COST = -1, -0.1
+        else:
+            self.OP_COST, self.SW_COST = cost
+
+        if verbose>0:
+            print " "*4 + "TrafficServer.__init__():",
+            print "new TrafficServer with params:"
+            print " "*8 + "Op cost: {}, Sw cost: {}".format(self.OP_COST, self.SW_COST)
 
     # Public Methods
     def observe(self, traffic_df):
@@ -63,13 +72,17 @@ class TrafficServer:
     def get_service_and_cost(self, control):
         """Generate service based on the control commands
         """
-        sleep_flag, control_req = control  # extract control commands
+        sleep_flag, control_req = control  # extract control commands\
+
+        cost = 0
         if sleep_flag:
             service = pd.DataFrame(columns=['sessionID', 'service_per_request_domain'])
-            cost = 0
         else:
             service = self.serve_requests_(control_req)
-            cost = self.COST
+            cost += self.OP_COST
+        cost += self.SW_COST if self.last_sleep_flag!=sleep_flag else 0
+
+        self.last_sleep_flag = sleep_flag
         self.epoch += 1
         return service, cost
 
@@ -78,6 +91,7 @@ class TrafficServer:
         self.q = {}
         self.last_traffic_ob = 0
         self.last_q_ob = 0
+        self.last_sleep_flag = True
 
     # Private Methods
     @staticmethod
