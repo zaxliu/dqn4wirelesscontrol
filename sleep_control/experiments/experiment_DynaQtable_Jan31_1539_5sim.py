@@ -5,6 +5,7 @@ import sys
 import os
 from multiprocessing import Pool
 project_dir = "/home/admin-326/Data/ipython-notebook/dqn4wirelesscontrol"
+log_file_name = "msg_DynaQtable_Jan31_1539_{}.log".format(sys.argv[1])
 sys.path.append(project_dir)
 sys_stdout = sys.stdout
 
@@ -53,14 +54,14 @@ gamma, alpha = 0.9, 0.9  # TD backup
 explore_strategy, epsilon = 'epsilon', 0.02  # exploration
 #    |- QAgentNN
 #        | - Phi
-phi_length = 25
-dim_state = (1, phi_length, 3+2)
-range_state_slice = [(0, 10), (0, 10), (0, 10), (0, 1), (0, 1)]
-range_state = [[range_state_slice]*phi_length]
+# phi_length = 5
+# dim_state = (1, phi_length, 3+2)
+# range_state_slice = [(0, 10), (0, 10), (0, 10), (0, 1), (0, 1)]
+# range_state = [[range_state_slice]*phi_length]
 #        | - No Phi
-# phi_length = 0
-# dim_state = (1, 1, 3)
-# range_state = ((((0, 10), (0, 10), (0, 10)),),)
+phi_length = 0
+dim_state = (1, 1, 3)
+range_state = ((((0, 10), (0, 10), (0, 10)),),)
 #        | - Other params
 momentum, learning_rate = 0.9, 0.01  # SGD
 num_buffer, memory_size, batch_size, update_period, freeze_period  = 2, 200, 100, 4, 16
@@ -69,7 +70,7 @@ reward_scaling, reward_scaling_update, rs_period = 1, 'adaptive', 32  # reward s
 model_type, traffic_window_size = 'IPP', 50
 stride, n_iter, adjust_offset = 2, 3, 1e-22
 eval_period, eval_len = 4, 100
-n_belief_bins, max_queue_len = 5, 20
+n_belief_bins, max_queue_len = 100, 20
 Rs, Rw, Rf, Co, Cw = 1.0, -1.0, -10.0, -5.0, -0.5
 traffic_params = (model_type, traffic_window_size,
                   stride, n_iter, adjust_offset,
@@ -79,12 +80,12 @@ queue_params = (max_queue_len,)
 beta = 0.5  # R = (1-beta)*ServiceReward + beta*Cost
 reward_params = (Rs, Rw, Rf, Co, Cw, beta)
 #    |- DynaQ
-num_sim = 10
+num_sim = 5
 
 # |- Env
 #    |- Time
 start_time = pd.to_datetime("2014-10-15 09:40:00")
-total_time = pd.Timedelta(days=7)
+total_time = pd.Timedelta(hours=1)
 time_step = pd.Timedelta(seconds=2)
 backoff_epochs = num_buffer*memory_size+phi_length
 head_datetime =  start_time - time_step*backoff_epochs
@@ -103,16 +104,16 @@ ts = TrafficServer(cost=(Co, Cw), verbose=2)
 
 env_model = SJTUModel(traffic_params, queue_params, reward_params, 2)
 
-# agent = Dyna_QAgentNN(
-#     env_model=env_model, num_sim=num_sim,
-agent = Phi_QAgentNN(
-    phi_length=phi_length,
-    dim_state=dim_state, range_state=range_state,
-    f_build_net = None,
-    batch_size=batch_size, learning_rate=learning_rate, momentum=momentum,
-    reward_scaling=reward_scaling, reward_scaling_update=reward_scaling_update, rs_period=rs_period,
-    update_period=update_period, freeze_period=freeze_period,
-    memory_size=memory_size, num_buffer=num_buffer,
+agent = Dyna_QAgent(
+    env_model=env_model, num_sim=num_sim,
+# agent = Phi_QAgentNN(
+#     phi_length=phi_length,
+    # dim_state=dim_state, range_state=range_state,
+    # f_build_net = None,
+    # batch_size=batch_size, learning_rate=learning_rate, momentum=momentum,
+    # reward_scaling=reward_scaling, reward_scaling_update=reward_scaling_update, rs_period=rs_period,
+    # update_period=update_period, freeze_period=freeze_period,
+    # memory_size=memory_size, num_buffer=num_buffer,
 # Below is QAgent params
     actions=actions, alpha=alpha, gamma=gamma,
     explore_strategy=explore_strategy, epsilon=epsilon,
@@ -126,7 +127,7 @@ emu = Emulation(te=te, ts=ts, c=c, beta=beta)
 t = time.time()
 sys.stdout = sys_stdout
 log_path = project_dir + '/sleep_control/experiments/log/'
-log_file_name = "msg_QNN_Jan31_1156_{}.log".format(sys.argv[1])
+
 if os.path.isfile(log_path+log_file_name):
     print "Log file {} already exist. Experiment cancelled.".format(log_file_name)
 else:
@@ -150,9 +151,8 @@ else:
             sys.stdout = log_file
     sys.stdout = sys_stdout
     log_file.close()
-    print
     print log_file_name,
+    print datetime.now().strftime('[%Y-%m-%d %H:%M:%S]'),
     print '{:.3f} sec,'.format(time.time()-t),
     print '{:.3f} min'.format((time.time()-t)/60)
-
 
