@@ -320,6 +320,9 @@ class QAgentNN(QAgent):
         predict_q = lasagne.layers.get_output(
             layer_or_layers=self.qnn, inputs=old_states
         )
+        predict_q_inference = lasagne.layers.get_output(
+            layer_or_layers=self.qnn, inputs=old_states, deterministic=True
+        )
         predict_next_q = lasagne.layers.get_output(
             layer_or_layers=self.qnn_target, inputs=new_states
         )
@@ -367,7 +370,7 @@ class QAgentNN(QAgent):
             )
 
         fun_q_lookup = theano.function(
-            [old_states], predict_q, allow_input_downcast=True
+            [old_states], predict_q_inference, allow_input_downcast=True
         )
         fun_rs_lookup = rs.get_value
 
