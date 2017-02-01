@@ -4,12 +4,12 @@ from datetime import datetime
 from multiprocessing import Pool
 import subprocess
 
-previous_pid = None
+previous_pid = 19386
 
 prefix = ('python /home/admin-326/ipython-notebook/dqn4wirelesscontrol/'
           'sleep_control/experiments/')
 
-cmd_list = [prefix+'experiment_DynaQtable_Jan31_2000_10bins.py ' + str(i) for i in range(14)]
+cmd_list = [prefix+'experiment_QNN_Jan31_2249_LSTM.py ' + str(i) for i in range(14)]
 
 def check_pid(pid):        
     """ Check For the existence of a unix pid. """

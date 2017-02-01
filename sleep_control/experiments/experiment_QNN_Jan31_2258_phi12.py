@@ -4,8 +4,8 @@ from datetime import datetime
 import sys
 import os
 from multiprocessing import Pool
-project_dir = "/home/admin-326/Data/ipython-notebook/dqn4wirelesscontrol"
-log_file_name = "msg_DynaQtable_Jan31_1539_{}.log".format(sys.argv[1])
+project_dir = "../../"
+log_file_name = "msg_QNN_Jan31_2258_{}.log".format(sys.argv[1])
 sys.path.append(project_dir)
 sys_stdout = sys.stdout
 
@@ -54,14 +54,14 @@ gamma, alpha = 0.9, 0.9  # TD backup
 explore_strategy, epsilon = 'epsilon', 0.02  # exploration
 #    |- QAgentNN
 #        | - Phi
-# phi_length = 5
-# dim_state = (1, phi_length, 3+2)
-# range_state_slice = [(0, 10), (0, 10), (0, 10), (0, 1), (0, 1)]
-# range_state = [[range_state_slice]*phi_length]
+phi_length = 12
+dim_state = (1, phi_length, 3+2)
+range_state_slice = [(0, 10), (0, 10), (0, 10), (0, 1), (0, 1)]
+range_state = [[range_state_slice]*phi_length]
 #        | - No Phi
-phi_length = 0
-dim_state = (1, 1, 3)
-range_state = ((((0, 10), (0, 10), (0, 10)),),)
+# phi_length = 0
+# dim_state = (1, 1, 3)
+# range_state = ((((0, 10), (0, 10), (0, 10)),),)
 #        | - Other params
 momentum, learning_rate = 0.9, 0.01  # SGD
 num_buffer, memory_size, batch_size, update_period, freeze_period  = 2, 200, 100, 4, 16
@@ -104,16 +104,16 @@ ts = TrafficServer(cost=(Co, Cw), verbose=2)
 
 env_model = SJTUModel(traffic_params, queue_params, reward_params, 2)
 
-agent = Dyna_QAgent(
-    env_model=env_model, num_sim=num_sim,
-# agent = Phi_QAgentNN(
-#     phi_length=phi_length,
-    # dim_state=dim_state, range_state=range_state,
-    # f_build_net = None,
-    # batch_size=batch_size, learning_rate=learning_rate, momentum=momentum,
-    # reward_scaling=reward_scaling, reward_scaling_update=reward_scaling_update, rs_period=rs_period,
-    # update_period=update_period, freeze_period=freeze_period,
-    # memory_size=memory_size, num_buffer=num_buffer,
+# agent = Dyna_QAgentNN(
+#     env_model=env_model, num_sim=num_sim,
+agent = Phi_QAgentNN(
+    phi_length=phi_length,
+    dim_state=dim_state, range_state=range_state,
+    f_build_net = None,
+    batch_size=batch_size, learning_rate=learning_rate, momentum=momentum,
+    reward_scaling=reward_scaling, reward_scaling_update=reward_scaling_update, rs_period=rs_period,
+    update_period=update_period, freeze_period=freeze_period,
+    memory_size=memory_size, num_buffer=num_buffer,
 # Below is QAgent params
     actions=actions, alpha=alpha, gamma=gamma,
     explore_strategy=explore_strategy, epsilon=epsilon,

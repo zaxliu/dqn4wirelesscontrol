@@ -5,7 +5,7 @@ import sys
 import os
 from multiprocessing import Pool
 project_dir = "/home/admin-326/Data/ipython-notebook/dqn4wirelesscontrol"
-log_file_name = "msg_DynaQtable_Jan31_1539_{}.log".format(sys.argv[1])
+log_file_name = "msg_DynaQtable_Jan31_2000_{}.log".format(sys.argv[1])
 sys.path.append(project_dir)
 sys_stdout = sys.stdout
 
@@ -70,7 +70,7 @@ reward_scaling, reward_scaling_update, rs_period = 1, 'adaptive', 32  # reward s
 model_type, traffic_window_size = 'IPP', 50
 stride, n_iter, adjust_offset = 2, 3, 1e-22
 eval_period, eval_len = 4, 100
-n_belief_bins, max_queue_len = 100, 20
+n_belief_bins, max_queue_len = 10, 20
 Rs, Rw, Rf, Co, Cw = 1.0, -1.0, -10.0, -5.0, -0.5
 traffic_params = (model_type, traffic_window_size,
                   stride, n_iter, adjust_offset,

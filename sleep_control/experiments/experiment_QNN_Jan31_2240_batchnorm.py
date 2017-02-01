@@ -5,7 +5,7 @@ import sys
 import os
 from multiprocessing import Pool
 project_dir = "../../"
-log_file_name = "msg_QNN_Jan31_2007_LSTM_{}.log".format(sys.argv[1])
+log_file_name = "msg_QNN_Jan31_2240_{}.log".format(sys.argv[1])
 sys.path.append(project_dir)
 sys_stdout = sys.stdout
 
@@ -54,7 +54,7 @@ gamma, alpha = 0.9, 0.9  # TD backup
 explore_strategy, epsilon = 'epsilon', 0.02  # exploration
 #    |- QAgentNN
 #        | - Phi
-phi_length = 5
+phi_length = 15
 dim_state = (1, phi_length, 3+2)
 range_state_slice = [(0, 10), (0, 10), (0, 10), (0, 1), (0, 1)]
 range_state = [[range_state_slice]*phi_length]
@@ -66,12 +66,16 @@ def f_build_net(input_var=None, input_shape=None, num_outputs=None):
     if input_shape is None or num_outputs is None:
         raise ValueError('State or Action dimension not given!')
     l_in = lasagne.layers.InputLayer(shape=input_shape, input_var=input_var)
-    d1, d2, d3, d4 = input_shape
-    l_shp1 = lasagne.layers.ReshapeLayer(l_in, (-1, d3, d4))
-    l_lstm = lasagne.layers.LSTMLayer(l_shp1, num_units=500, grad_clipping=10, only_return_final=True)
-    l_shp2 = lasagne.layers.ReshapeLayer(l_lstm, (-1, 500))
+    l_hid1 = lasagne.layers.batch_norm(lasagne.layers.DenseLayer(
+                l_in, num_units=500,
+                nonlinearity=lasagne.nonlinearities.rectify,
+                W=lasagne.init.GlorotUniform()))
+    l_hid2 = lasagne.layers.batch_norm(lasagne.layers.DenseLayer(
+                l_hid1, num_units=500,
+                nonlinearity=lasagne.nonlinearities.rectify,
+                W=lasagne.init.GlorotUniform()))
     l_out = lasagne.layers.DenseLayer(
-        l_shp2, num_units=num_outputs,
+        l_hid2, num_units=num_outputs,
         nonlinearity=lasagne.nonlinearities.tanh)
     return l_out
 #        | - Other params
@@ -97,7 +101,7 @@ num_sim = 5
 # |- Env
 #    |- Time
 start_time = pd.to_datetime("2014-10-15 09:40:00")
-total_time = pd.Timedelta(hours=2)
+total_time = pd.Timedelta(days=7)
 time_step = pd.Timedelta(seconds=2)
 backoff_epochs = num_buffer*memory_size+phi_length
 head_datetime =  start_time - time_step*backoff_epochs
