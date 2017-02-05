@@ -4,8 +4,8 @@ from datetime import datetime
 import sys
 import os
 from multiprocessing import Pool
-project_dir = "../../"
-log_file_name = "msg_QNN_Jan31_2258_{}.log".format(sys.argv[1])
+project_dir = "/home/admin-326/Data/ipython-notebook/dqn4wirelesscontrol"
+log_file_name = "msg_DynaQNN_Feb2_0939_{}.log".format(sys.argv[1])
 sys.path.append(project_dir)
 sys_stdout = sys.stdout
 
@@ -42,7 +42,7 @@ class Dyna_QAgentNN(DynaMixin, QAgentNN):
 
 # load from processed data
 session_df =pd.read_csv(
-    filepath_or_buffer=project_dir+'/sleep_control/data/net_traffic_processed_dh3.dat',
+    filepath_or_buffer=project_dir+'/sleep_control/data/net_traffic_processed_mechcenter.dat',
     parse_dates=['startTime_datetime', 'endTime_datetime', 'interArrivalDuration_datetime']
 )
 
@@ -54,14 +54,14 @@ gamma, alpha = 0.9, 0.9  # TD backup
 explore_strategy, epsilon = 'epsilon', 0.02  # exploration
 #    |- QAgentNN
 #        | - Phi
-phi_length = 12
-dim_state = (1, phi_length, 3+2)
-range_state_slice = [(0, 10), (0, 10), (0, 10), (0, 1), (0, 1)]
-range_state = [[range_state_slice]*phi_length]
+# phi_length = 5
+# dim_state = (1, phi_length, 3+2)
+# range_state_slice = [(0, 10), (0, 10), (0, 10), (0, 1), (0, 1)]
+# range_state = [[range_state_slice]*phi_length]
 #        | - No Phi
-# phi_length = 0
-# dim_state = (1, 1, 3)
-# range_state = ((((0, 10), (0, 10), (0, 10)),),)
+phi_length = 0
+dim_state = (1, 1, 3)
+range_state = ((((0, 10), (0, 10), (0, 10)),),)
 #        | - Other params
 momentum, learning_rate = 0.9, 0.01  # SGD
 num_buffer, memory_size, batch_size, update_period, freeze_period  = 2, 200, 100, 4, 16
@@ -104,10 +104,10 @@ ts = TrafficServer(cost=(Co, Cw), verbose=2)
 
 env_model = SJTUModel(traffic_params, queue_params, reward_params, 2)
 
-# agent = Dyna_QAgentNN(
-#     env_model=env_model, num_sim=num_sim,
-agent = Phi_QAgentNN(
-    phi_length=phi_length,
+agent = Dyna_QAgentNN(
+    env_model=env_model, num_sim=num_sim,
+# agent = Phi_QAgentNN(
+#     phi_length=phi_length,
     dim_state=dim_state, range_state=range_state,
     f_build_net = None,
     batch_size=batch_size, learning_rate=learning_rate, momentum=momentum,
@@ -127,7 +127,6 @@ emu = Emulation(te=te, ts=ts, c=c, beta=beta)
 t = time.time()
 sys.stdout = sys_stdout
 log_path = project_dir + '/sleep_control/experiments/log/'
-
 if os.path.isfile(log_path+log_file_name):
     print "Log file {} already exist. Experiment cancelled.".format(log_file_name)
 else:
@@ -152,7 +151,7 @@ else:
     sys.stdout = sys_stdout
     log_file.close()
     print log_file_name,
-    print datetime.now().strftime('[%Y-%m-%d %H:%M:%S]'),
+    datetime.now().strftime('[%Y-%m-%d %H:%M:%S]'),
     print '{:.3f} sec,'.format(time.time()-t),
     print '{:.3f} min'.format((time.time()-t)/60)
 

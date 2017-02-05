@@ -9,7 +9,9 @@ previous_pid = None
 prefix = ('python /home/admin-326/ipython-notebook/dqn4wirelesscontrol/'
           'sleep_control/experiments/')
 
-cmd_list = [prefix+'experiment_DynaQtable_Jan31_2000_10bins.py ' + str(i) for i in range(14)]
+cmd_list = [prefix+'experiment_QNN_Feb1_1740_phi15_dsy.py ' + str(i) for i in range(14)]
+postproc_list = [prefix+'log_indexing_phiNN.py msg_QNN_Feb1_1740 14']
+postproc_list += ['tar czf ./log/tarballs/msg_QNN_Feb1_1740_x14.tar.gz ./log/msg_QNN_Feb1_1740*.log']
 
 def check_pid(pid):        
     """ Check For the existence of a unix pid. """
@@ -36,4 +38,7 @@ while(True):
 
 pool = Pool(7)
 pool.map(run, cmd_list)
+pool.map(run, postproc_list)
 pool.close()
+
+
