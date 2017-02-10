@@ -111,10 +111,10 @@ if len(argv)>2:
             print (file, df.shape)
         return
     
-    for file in files:
-        index_file(file)
+    # for file in files:
+    #     index_file(file)
     
-    p = Pool(4)
+    p = Pool(8)
     p.map(index_file, files)
 else:
     print "Please specify pattern of log file name and num of files."
