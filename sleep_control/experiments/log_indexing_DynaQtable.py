@@ -13,7 +13,7 @@ def msg_sim(num_sim):
     # action: only apply uniform random policy
     '    QAgent.act_\(\): randomly choose action \(None state\).\n'
     # simulated experience
-    '    DynaMixin.reinforce_\(\): simulated experience \d: [\w\(\)\.\-, \']+\n'
+    '    DynaMixin.reinforce_\(\): simulated experience \d+: [\w\(\)\.\-, \']+\n'
     )
     return ''.join([msg_single_sim.format(suffix='_sim_'+str(n)) for n in range(num_sim)])
 
@@ -110,8 +110,11 @@ if len(argv)>2:
                 df.to_csv(f_ind, sep=';', index=True, header=True)
             print (file, df.shape)
         return
-        
-    p = Pool(2)
+    
+    for file in files:
+        index_file(file)
+    
+    p = Pool(4)
     p.map(index_file, files)
 else:
     print "Please specify pattern of log file name and num of files."
